@@ -2,6 +2,18 @@
   "name": "git-shortcut-tui",
   "version": "0.1.0",
   "description": "A hobbyist Git helper that reduces friction while keeping you in control",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anlaki-py/g.git"
+  },
+  "homepage": "https://github.com/anlaki-py/g#readme",
+  "keywords": [
+    "git",
+    "cli",
+    "tui",
+    "shortcut"
+  ],
   "type": "module",
   "bin": {
     "g": "bin/g.js"
@@ -27,7 +39,6 @@
     "get-east-asian-width": "1.6.0",
     "marked": "18.0.5"
   },
-  "license": "MIT",
   "devDependencies": {
     "esbuild": "^0.25.12"
   }

@@ -1,0 +1,65 @@
+name: release
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - "bin/**"
+      - "src/**"
+      - "tui/**"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Compute next version
+        run: |
+          LATEST=$(git tag --sort=-v:refname | head -n 1)
+          NEXT=$(node -e '
+            const latest = process.argv[1] || "v0.1.0";
+            const [major, minor, patch] = latest.replace(/^v/, "").split(".").map(Number);
+            console.log(`${major}.${minor}.${patch + 1}`);
+          ' "$LATEST")
+          echo "next=$NEXT" >> "$GITHUB_ENV"
+      - name: Bump version
+        run: npm version "${{ env.next }}" --no-git-tag-version
+      - name: Commit version bump
+        env:
+          BOT_EMAIL: "41898282+github-actions[bot]@users.noreply.github.com"
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "$BOT_EMAIL"
+          git add package.json package-lock.json
+          git commit -m "chore: release v${{ env.next }}"
+          git push origin "HEAD:${{ github.ref_name }}"
+      - name: Tag and push
+        run: |
+          git tag "v${{ env.next }}"
+          git push origin "v${{ env.next }}"
+      - name: Pack
+        run: |
+          mkdir -p dist
+          npm pack --pack-destination dist
+          mv dist/git-shortcut-tui-${{ env.next }}.tgz dist/git-shortcut-tui.tgz
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ env.next }}" dist/git-shortcut-tui.tgz \
+            --generate-notes \
+            --title "v${{ env.next }}"

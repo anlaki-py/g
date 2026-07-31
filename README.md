@@ -8,24 +8,15 @@ A hobbyist Git helper built to reduce everyday friction while keeping you in con
 
 Requires Node.js 22.19 or newer and Git.
 
-### Linux
-
 Install directly from GitHub without cloning:
 
 ```sh
-npm install --global https://github.com/anlaki-py/g/archive/refs/heads/main.tar.gz
+npm install --global https://github.com/anlaki-py/g/releases/latest/download/git-shortcut-tui.tgz
 ```
 
-### Windows
+The same command works on Linux, macOS, and Windows (quote the URL in PowerShell or Windows Terminal). The URL points at the latest release, which is created automatically whenever source code is pushed: tests run, the version bumps, and a tagged GitHub Release with the packaged tarball is generated.
 
-Run in PowerShell or Windows Terminal:
-
-```powershell
-npm uninstall --global git-shortcut-tui
-npm install --global "https://github.com/anlaki-py/g/archive/refs/heads/main.tar.gz"
-```
-
-The archive URL is intentional: installing the Git URL directly can leave npm's Windows launcher pointing at a temporary fnm/npm cache directory. The npm installation creates the Windows `g.cmd` launcher automatically. Windows x64 and ARM64 console helpers are included in the package. The test workflow runs on both Ubuntu and Windows for every push and pull request.
+> **Upgrading from an earlier install:** if you installed `g` before releases existed, run `npm uninstall --global git-shortcut-tui` once before installing from the release URL above. The npm installation creates the Windows `g.cmd` launcher automatically. Windows x64 and ARM64 console helpers are included in the package. The test workflow runs on both Ubuntu and Windows for every push and pull request.
 
 ### Local development
 
