@@ -1,6 +1,6 @@
 {
   "name": "git-shortcut-tui",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "A hobbyist Git helper that reduces friction while keeping you in control",
   "license": "MIT",
   "repository": {
