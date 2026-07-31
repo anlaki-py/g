@@ -1,5 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import {
+  Editor,
   fuzzyFilter,
   getKeybindings,
   Input,
@@ -165,9 +166,54 @@ export function promptText(title, initialValue = "") {
       invalidate() { input.invalidate(); },
       get focused() { return input.focused; },
       set focused(value) { input.focused = value; },
-      handleInput(data) { input.handleInput(data); },
+      handleInput(data) {
+        const kb = getKeybindings();
+        if (kb.matches(data, "tui.select.cancel") || kb.matches(data, "tui.input.copy")) {
+          finish(undefined);
+          return;
+        }
+        input.handleInput(data);
+      },
       render(width) {
         return [truncateToWidth(title, width, ""), ...input.render(width)];
+      },
+    });
+    tui.setFocus(tui.children[0]);
+    tui.start();
+  });
+}
+
+export function promptCommitMessage() {
+  requireTerminal("input");
+  return new Promise((resolve) => {
+    const terminal = new ProcessTerminal();
+    const tui = new TuiMainScreen(terminal);
+    const editor = new Editor(tui, { borderColor: (text) => text });
+    let finished = false;
+    const finish = (value) => {
+      if (finished) return;
+      finished = true;
+      tui.stop();
+      resolve(value);
+    };
+    editor.onSubmit = finish;
+    tui.addChild({
+      invalidate() { editor.invalidate(); },
+      get focused() { return editor.focused; },
+      set focused(value) { editor.focused = value; },
+      handleInput(data) {
+        const kb = getKeybindings();
+        if (kb.matches(data, "tui.select.cancel") || kb.matches(data, "tui.input.copy")) {
+          finish(undefined);
+          return;
+        }
+        editor.handleInput(data);
+      },
+      render(width) {
+        return [
+          truncateToWidth(dim("Commit message · Enter submit · Alt+Enter new line · Esc/Ctrl+C cancel"), width, ""),
+          ...editor.render(width),
+        ];
       },
     });
     tui.setFocus(tui.children[0]);

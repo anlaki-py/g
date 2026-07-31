@@ -68,7 +68,11 @@ g c "describe the change"
 g commit "describe the change"
 ```
 
-A commit message is required; `g c` without one exits without creating a commit.
+Without a message, `g c` opens a prompt: type your message and press Enter to commit, Alt+Enter inserts a new line, and Escape or Ctrl+C cancels without committing.
+
+```sh
+g c
+```
 
 Stage all changes with either command:
 

@@ -108,16 +108,34 @@ test("c and commit create a commit with the provided message", async () => {
   }
 });
 
-test("commit requires an explicit message", async () => {
+test("commit without a message prompts and commits the returned message", async () => {
   const commitArgs = [];
-  const output = [];
   const code = await run(["c"], {
+    promptCommitMessage: async () => "prompted message",
     commit: (args) => commitArgs.push(args),
-    log: (text) => output.push(text),
   });
-  assert.equal(code, 1);
+  assert.equal(code, 0);
+  assert.deepEqual(commitArgs, [["-m", "prompted message"]]);
+});
+
+test("cancelling the commit prompt does not commit", async () => {
+  const commitArgs = [];
+  const code = await run(["c"], {
+    promptCommitMessage: async () => undefined,
+    commit: (args) => commitArgs.push(args),
+  });
+  assert.equal(code, 0);
   assert.deepEqual(commitArgs, []);
-  assert.deepEqual(output, ["Commit message required. Usage: g c <message>"]);
+});
+
+test("an empty prompt result does not commit", async () => {
+  const commitArgs = [];
+  const code = await run(["c"], {
+    promptCommitMessage: async () => "   ",
+    commit: (args) => commitArgs.push(args),
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(commitArgs, []);
 });
 
 test("commit forwards Git options verbatim", async () => {

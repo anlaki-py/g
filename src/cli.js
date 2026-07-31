@@ -5,6 +5,7 @@ import { selectCommitRange } from "./commit-selector.js";
 import { renderDiff } from "./diff-renderer.js";
 import { showDiff } from "./diff-viewer.js";
 import { confirmBranchCreation } from "./selectors.js";
+import { promptCommitMessage } from "./selectors.js";
 import { runCleanWorkflow } from "./workflows/clean.js";
 import { runConflictsWorkflow } from "./workflows/conflicts.js";
 import { runLogWorkflow } from "./workflows/log.js";
@@ -47,7 +48,7 @@ Commands:
   a, add [paths...]       Stage files (defaults to .); -p opens hunk selector
   stage                   Interactively stage files and hunks
   b, branch [args...]     Select a branch or run git switch
-  c, commit <message>     Commit staged changes
+  c, commit [message]     Commit staged changes (prompts when no message is given)
   d, diff [args...]       Show the current diff
   diff -b|-between        Search and diff two commits
   l, log [args...]        Search commits and preview changes
@@ -94,6 +95,7 @@ export async function run(args, dependencies = {}) {
   const runStash = dependencies.stash ?? stash;
   const runClean = dependencies.clean ?? clean;
   const runRemote = dependencies.remote ?? remote;
+  const askForMessage = dependencies.promptCommitMessage ?? promptCommitMessage;
   const log = dependencies.log ?? console.log;
 
   if (args.length === 1 && ["h", "-h", "--help"].includes(args[0])) {
@@ -209,8 +211,10 @@ export async function run(args, dependencies = {}) {
   if (["c", "commit"].includes(args[0])) {
     const commitArgs = args.slice(1);
     if (commitArgs.length === 0) {
-      log("Commit message required. Usage: g c <message>");
-      return 1;
+      const message = await askForMessage();
+      if (message === undefined || message.trim() === "") return 0;
+      createCommit(["-m", message]);
+      return 0;
     }
     createCommit(commitArgs.some((arg) => arg.startsWith("-"))
       ? commitArgs
