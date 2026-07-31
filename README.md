@@ -16,6 +16,16 @@ npm install --global https://github.com/anlaki-py/g/releases/latest/download/git
 
 The same command works on Linux, macOS, and Windows (quote the URL in PowerShell or Windows Terminal). The URL points at the latest release, which is created automatically whenever source code is pushed: tests run, the version bumps, and a tagged GitHub Release with the packaged tarball is generated.
 
+### Try it without installing
+
+Don't want to commit to an install yet? `npx` can download and run the same tarball on the fly — nothing is installed on your system:
+
+```sh
+npx -y https://github.com/anlaki-py/g/releases/latest/download/git-shortcut-tui.tgz h
+```
+
+Replace `h` with any command (`s` for status, `d` for diff, `c "message"` to commit, …). The first run downloads the tarball into npx's cache; later runs are instant. Note that `npx git-shortcut-tui` does not work — the package is not published to the npm registry, only as GitHub release tarballs. Interactive commands (`b`, `stage`, `c` without a message) require a terminal, so run `npx` from an interactive shell rather than a pipe.
+
 > **Upgrading from an earlier install:** if you installed `g` before releases existed, run `npm uninstall --global git-shortcut-tui` once before installing from the release URL above. The npm installation creates the Windows `g.cmd` launcher automatically. Windows x64 and ARM64 console helpers are included in the package. The test workflow runs on both Ubuntu and Windows for every push and pull request.
 
 ### Local development
