@@ -1,3 +1,4 @@
+import { createInterface } from "node:readline/promises";
 import {
   fuzzyFilter,
   getKeybindings,
@@ -180,4 +181,19 @@ export async function confirmAction(title) {
     { value: "no", label: "No" },
   ]);
   return selected?.value === "yes";
+}
+
+export function isAffirmative(answer) {
+  return ["y", "yes"].includes(answer.trim().toLowerCase());
+}
+
+export async function confirmBranchCreation(name) {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) return false;
+  const readline = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const answer = await readline.question(`Branch "${name}" does not exist. Create it? [y/N] `);
+    return isAffirmative(answer);
+  } finally {
+    readline.close();
+  }
 }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { SearchSelector } from "../src/selectors.js";
+import { isAffirmative, SearchSelector } from "../src/selectors.js";
 import { visibleWidth } from "../tui/src/index.ts";
 import { runCleanWorkflow } from "../src/workflows/clean.js";
 import { runConflictsWorkflow } from "../src/workflows/conflicts.js";
@@ -10,6 +10,13 @@ import { runRemoteWorkflow } from "../src/workflows/remote.js";
 import { combineSelectedHunks, runStageWorkflow, splitPatchIntoHunks } from "../src/workflows/stage.js";
 import { runStashWorkflow } from "../src/workflows/stash.js";
 import { runUndoWorkflow } from "../src/workflows/undo.js";
+
+test("branch creation confirmation defaults to no", () => {
+  assert.equal(isAffirmative(""), false);
+  assert.equal(isAffirmative("n"), false);
+  assert.equal(isAffirmative("Y"), true);
+  assert.equal(isAffirmative("yes"), true);
+});
 
 test("shared selector keeps long content within terminal width", () => {
   const selector = new SearchSelector({

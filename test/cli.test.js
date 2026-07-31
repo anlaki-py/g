@@ -32,6 +32,33 @@ test("b and branch switch directly when a branch name is provided", async () => 
   }
 });
 
+test("a missing direct branch is created only after confirmation", async () => {
+  for (const confirmed of [false, true]) {
+    const switched = [];
+    const prompts = [];
+    const code = await run(["b", "new-feature"], {
+      branchExists: () => false,
+      confirmBranchCreation: async (name) => { prompts.push(name); return confirmed; },
+      switchBranch: (args) => switched.push(args),
+    });
+    assert.equal(code, 0);
+    assert.deepEqual(prompts, ["new-feature"]);
+    assert.deepEqual(switched, confirmed ? [["-c", "new-feature"]] : []);
+  }
+});
+
+test("an existing direct branch switches without prompting", async () => {
+  const switched = [];
+  let prompted = false;
+  await run(["branch", "main"], {
+    branchExists: () => true,
+    confirmBranchCreation: async () => { prompted = true; return false; },
+    switchBranch: (args) => switched.push(args),
+  });
+  assert.equal(prompted, false);
+  assert.deepEqual(switched, [["main"]]);
+});
+
 test("cancelling does not switch branches", async () => {
   let switched = false;
   const code = await run(["b"], {
@@ -64,10 +91,16 @@ test("c and commit create a commit with the provided message", async () => {
   }
 });
 
-test("commit uses the default message when none is provided", async () => {
+test("commit requires an explicit message", async () => {
   const commitArgs = [];
-  await run(["c"], { commit: (args) => commitArgs.push(args) });
-  assert.deepEqual(commitArgs, [["-m", "new commit"]]);
+  const output = [];
+  const code = await run(["c"], {
+    commit: (args) => commitArgs.push(args),
+    log: (text) => output.push(text),
+  });
+  assert.equal(code, 1);
+  assert.deepEqual(commitArgs, []);
+  assert.deepEqual(output, ["Commit message required. Usage: g c <message>"]);
 });
 
 test("commit forwards Git options verbatim", async () => {
@@ -80,15 +113,29 @@ test("d and diff display the current diff and forward Git arguments", async () =
   for (const command of ["d", "diff"]) {
     const calls = [];
     const code = await run([command, "--stat"], {
-      getCurrentDiff: (args) => { calls.push(["generate", args]); return "patch"; },
+      getCurrentDiff: (args) => { calls.push(["generate", args]); return Array(30).fill("patch").join("\n"); },
       showDiff: async (patch, title) => calls.push(["display", patch, title]),
     });
     assert.equal(code, 0);
     assert.deepEqual(calls, [
       ["generate", ["--stat"]],
-      ["display", "patch", "Current changes"],
+      ["display", Array(30).fill("patch").join("\n"), "Current changes"],
     ]);
   }
+});
+
+test("small current diffs render inline without opening the viewer", async () => {
+  const output = [];
+  let opened = false;
+  const code = await run(["d"], {
+    getCurrentDiff: () => "diff --git a/file b/file\n@@ -1 +1 @@\n-old\n+new",
+    renderDiff: () => "rendered diff",
+    showDiff: async () => { opened = true; },
+    log: (text) => output.push(text),
+  });
+  assert.equal(code, 0);
+  assert.equal(opened, false);
+  assert.deepEqual(output, ["rendered diff"]);
 });
 
 test("diff reports when there are no current differences", async () => {
@@ -131,7 +178,10 @@ test("interactive workflow commands route to their workflows", async () => {
     { args: ["remote"], dependency: "runRemoteWorkflow" },
   ]) {
     const calls = [];
-    const code = await run(args, { [dependency]: async (...values) => calls.push(values) });
+    const code = await run(args, {
+      [dependency]: async (...values) => calls.push(values),
+      log() {},
+    });
     assert.equal(code, 0);
     assert.equal(calls.length, 1);
     if (dependency === "runLogWorkflow") assert.deepEqual(calls[0], [["--all"]]);
@@ -163,6 +213,17 @@ test("add accepts specific paths", async () => {
   const staged = [];
   await run(["add", "src", "README.md"], { add: (paths) => staged.push(paths) });
   assert.deepEqual(staged, [["src", "README.md"]]);
+});
+
+test("status and undo print useful next-step hints", async () => {
+  const output = [];
+  await run(["s"], { status() {}, log: (text) => output.push(text) });
+  await run(["undo"], {
+    runUndoWorkflow: async () => ({ commit: "abc" }),
+    log: (text) => output.push(text),
+  });
+  assert.match(output[0], /g stage/);
+  assert.match(output[1], /g c <message>/);
 });
 
 test("status, init, pull, and push forward Git arguments", async () => {

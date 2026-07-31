@@ -1,6 +1,8 @@
 # g
 
-A small shortcut for common Git commands. It supports switching between local branches with a terminal UI and creating commits.
+A hobbyist Git helper built to reduce everyday friction while keeping you in control. It adds searchable terminal interfaces and short commands for common workflows without hiding the Git operations being performed.
+
+> **Hobbyist project:** `g` is a personal convenience tool, not professional or production-grade Git tooling. Review prompts and diffs before confirming operations, and use regular Git whenever you need its full precision and guarantees.
 
 ## Install locally
 
@@ -37,6 +39,8 @@ g b feature/login
 g branch feature/login
 ```
 
+If the named branch does not exist, `g` asks whether to create it with `[y/N]`; pressing Enter defaults to no.
+
 Create a commit from staged changes with either command:
 
 ```sh
@@ -44,11 +48,7 @@ g c "describe the change"
 g commit "describe the change"
 ```
 
-If the message is omitted, `g` uses `new commit`:
-
-```sh
-g c
-```
+A commit message is required; `g c` without one exits without creating a commit.
 
 Stage all changes with either command:
 
@@ -79,7 +79,7 @@ g s
 g status
 ```
 
-Show staged, unstaged, and untracked changes in a colored, scrollable diff viewer:
+Show staged, unstaged, and untracked changes with colored rendering. Small diffs print inline; larger diffs open the scrollable viewer:
 
 ```sh
 g d

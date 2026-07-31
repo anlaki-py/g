@@ -1,6 +1,8 @@
 import { selectBranch } from "./branch-selector.js";
 import { selectCommitRange } from "./commit-selector.js";
+import { renderDiff } from "./diff-renderer.js";
 import { showDiff } from "./diff-viewer.js";
+import { confirmBranchCreation } from "./selectors.js";
 import { runCleanWorkflow } from "./workflows/clean.js";
 import { runConflictsWorkflow } from "./workflows/conflicts.js";
 import { runLogWorkflow } from "./workflows/log.js";
@@ -10,6 +12,7 @@ import { runStashWorkflow } from "./workflows/stash.js";
 import { runUndoWorkflow } from "./workflows/undo.js";
 import {
   add,
+  branchExists,
   clean,
   commit,
   getCurrentDiff,
@@ -26,13 +29,21 @@ import {
 } from "./git.js";
 
 const USAGE = "Usage: g <command> [git arguments...]";
-const HELP = `${USAGE}
+
+export function isSmallDiff(patch, terminalRows = process.stdout.rows) {
+  const lineLimit = Math.max(8, Math.min(24, (terminalRows ?? 24) - 4));
+  return patch.split("\n").length <= lineLimit;
+}
+const HELP = `g is a hobbyist Git helper designed to reduce friction while keeping you in control.
+It is not intended as professional or production-grade Git tooling.
+
+${USAGE}
 
 Commands:
   a, add [paths...]       Stage files (defaults to .); -p opens hunk selector
   stage                   Interactively stage files and hunks
   b, branch [args...]     Select a branch or run git switch
-  c, commit [message]     Commit staged changes (defaults to "new commit")
+  c, commit <message>     Commit staged changes
   d, diff [args...]       Show the current diff
   diff -b|-between        Search and diff two commits
   l, log [args...]        Search commits and preview changes
@@ -52,6 +63,8 @@ export async function run(args, dependencies = {}) {
   const list = dependencies.listBranches ?? listBranches;
   const select = dependencies.selectBranch ?? selectBranch;
   const checkout = dependencies.switchBranch ?? switchBranch;
+  const hasBranch = dependencies.branchExists ?? branchExists;
+  const confirmCreateBranch = dependencies.confirmBranchCreation ?? confirmBranchCreation;
   const createCommit = dependencies.commit ?? commit;
   const stage = dependencies.add ?? add;
   const showStatus = dependencies.status ?? status;
@@ -63,6 +76,7 @@ export async function run(args, dependencies = {}) {
   const commits = dependencies.listCommits ?? listCommits;
   const selectRange = dependencies.selectCommitRange ?? selectCommitRange;
   const displayDiff = dependencies.showDiff ?? showDiff;
+  const renderInline = dependencies.renderDiff ?? renderDiff;
   const stageInteractive = dependencies.runStageWorkflow ?? runStageWorkflow;
   const browseLog = dependencies.runLogWorkflow ?? runLogWorkflow;
   const manageStash = dependencies.runStashWorkflow ?? runStashWorkflow;
@@ -97,6 +111,7 @@ export async function run(args, dependencies = {}) {
 
   if (["s", "status"].includes(args[0])) {
     showStatus(args.slice(1));
+    if (args.length === 1) log("Next: g stage to select changes, then g c <message> to commit.");
     return 0;
   }
 
@@ -122,7 +137,8 @@ export async function run(args, dependencies = {}) {
   }
 
   if (args[0] === "undo") {
-    await undoLatest();
+    const result = await undoLatest();
+    if (!result?.cancelled) log("Next: adjust the staged changes or run g c <message> to recommit.");
     return 0;
   }
 
@@ -168,7 +184,8 @@ export async function run(args, dependencies = {}) {
       log("No differences found.");
       return 0;
     }
-    await displayDiff(patch, "Current changes");
+    if (isSmallDiff(patch)) log(patch.includes("diff --git ") ? renderInline(patch) : patch.trimEnd());
+    else await displayDiff(patch, "Current changes");
     return 0;
   }
 
@@ -179,11 +196,13 @@ export async function run(args, dependencies = {}) {
 
   if (["c", "commit"].includes(args[0])) {
     const commitArgs = args.slice(1);
-    createCommit(commitArgs.length === 0
-      ? ["-m", "new commit"]
-      : commitArgs.some((arg) => arg.startsWith("-"))
-        ? commitArgs
-        : ["-m", commitArgs.join(" ")]);
+    if (commitArgs.length === 0) {
+      log("Commit message required. Usage: g c <message>");
+      return 1;
+    }
+    createCommit(commitArgs.some((arg) => arg.startsWith("-"))
+      ? commitArgs
+      : ["-m", commitArgs.join(" ")]);
     return 0;
   }
 
@@ -193,6 +212,10 @@ export async function run(args, dependencies = {}) {
   }
 
   if (args.length > 1) {
+    if (args.length === 2 && !hasBranch(args[1])) {
+      if (await confirmCreateBranch(args[1])) checkout(["-c", args[1]]);
+      return 0;
+    }
     checkout(args.slice(1));
     return 0;
   }

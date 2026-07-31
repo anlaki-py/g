@@ -1,7 +1,7 @@
 {
   "name": "git-shortcut-tui",
   "version": "0.1.0",
-  "description": "A small TUI shortcut for common Git commands",
+  "description": "A hobbyist Git helper that reduces friction while keeping you in control",
   "type": "module",
   "bin": {
     "g": "bin/g.js"

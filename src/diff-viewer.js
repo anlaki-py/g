@@ -14,7 +14,7 @@ const dim = (text) => `\x1b[2m${text}\x1b[22m`;
 export class DiffViewport {
   constructor(tui, patch, title, onClose) {
     this.tui = tui;
-    this.allLines = renderDiff(patch).split("\n");
+    this.allLines = (patch.includes("diff --git ") ? renderDiff(patch) : patch).split("\n");
     this.lines = this.allLines;
     this.title = title;
     this.onClose = onClose;

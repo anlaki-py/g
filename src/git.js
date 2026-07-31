@@ -41,6 +41,19 @@ export function switchBranch(args, cwd = process.cwd()) {
   runGit(["switch", ...args], { cwd, stdio: "inherit" });
 }
 
+export function branchExists(name, cwd = process.cwd()) {
+  const local = spawnSync("git", ["show-ref", "--verify", "--quiet", `refs/heads/${name}`], {
+    cwd,
+    stdio: "ignore",
+  });
+  if (local.status === 0) return true;
+
+  const remotes = runGit(["for-each-ref", "--format=%(refname:strip=2)", "refs/remotes"], { cwd })
+    .split("\n")
+    .filter(Boolean);
+  return remotes.some((branch) => branch.endsWith(`/${name}`));
+}
+
 export function commit(args, cwd = process.cwd()) {
   runGit(["commit", ...args], { cwd, stdio: "inherit" });
 }
