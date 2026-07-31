@@ -13,7 +13,7 @@ Requires Node.js 22.19 or newer and Git.
 Install directly from GitHub without cloning:
 
 ```sh
-npm install --global git+https://github.com/anlaki-py/g.git
+npm install --global https://github.com/anlaki-py/g/archive/refs/heads/main.tar.gz
 ```
 
 ### Windows
@@ -21,10 +21,11 @@ npm install --global git+https://github.com/anlaki-py/g.git
 Run in PowerShell or Windows Terminal:
 
 ```powershell
-npm install --global "git+https://github.com/anlaki-py/g.git"
+npm uninstall --global git-shortcut-tui
+npm install --global "https://github.com/anlaki-py/g/archive/refs/heads/main.tar.gz"
 ```
 
-The npm installation creates the Windows `g.cmd` launcher automatically. Windows x64 and ARM64 console helpers are included in the package. The test workflow runs on both Ubuntu and Windows for every push and pull request.
+The archive URL is intentional: installing the Git URL directly can leave npm's Windows launcher pointing at a temporary fnm/npm cache directory. The npm installation creates the Windows `g.cmd` launcher automatically. Windows x64 and ARM64 console helpers are included in the package. The test workflow runs on both Ubuntu and Windows for every push and pull request.
 
 ### Local development
 
