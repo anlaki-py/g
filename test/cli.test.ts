@@ -227,6 +227,51 @@ test("interactive workflow commands route to their workflows", async () => {
   }
 });
 
+test("up, update, and upgrade route to the update workflow", async () => {
+  for (const command of ["up", "update", "upgrade"]) {
+    const calls: unknown[][] = [];
+    const code = await run([command], {
+      runUpdateWorkflow: async () => {
+        calls.push([]);
+        return { status: "up-to-date", version: "0.1.4" };
+      },
+      log() {},
+    });
+    assert.equal(code, 0);
+    assert.equal(calls.length, 1);
+  }
+});
+
+test("up prints the update result messages", async () => {
+  const output: string[] = [];
+  const code = await run(["up"], {
+    runUpdateWorkflow: async () => ({ status: "updated", from: "0.1.4", to: "0.1.5" }),
+    log: (text) => output.push(text),
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(output, ["g updated from v0.1.4 to v0.1.5."]);
+});
+
+test("upgrade reports when already up to date", async () => {
+  const output: string[] = [];
+  const code = await run(["upgrade"], {
+    runUpdateWorkflow: async () => ({ status: "up-to-date", version: "0.1.4" }),
+    log: (text) => output.push(text),
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(output, ["g is up to date (v0.1.4)."]);
+});
+
+test("update fails with exit code 1 when the update errors", async () => {
+  const output: string[] = [];
+  const code = await run(["update"], {
+    runUpdateWorkflow: async () => ({ status: "error", message: "GitHub API returned 403" }),
+    log: (text) => output.push(text),
+  });
+  assert.equal(code, 1);
+  assert.deepEqual(output, ["Update failed: GitHub API returned 403"]);
+});
+
 test("stash, clean, and remote forward explicit native arguments", async () => {
   for (const { args, dependency } of [
     { args: ["stash", "list"], dependency: "stash" },
@@ -287,6 +332,7 @@ test("h, -h, and --help show every command", async () => {
     assert.match(output[0]!, /pull \[args\.\.\.\]/);
     assert.match(output[0]!, /push \[args\.\.\.\]/);
     assert.match(output[0]!, /d, diff \[args\.\.\.\]/);
+    assert.match(output[0]!, /up, update, upgrade/);
     assert.doesNotMatch(output[0]!, /p, push/);
   }
 });

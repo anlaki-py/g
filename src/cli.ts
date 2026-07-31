@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-
 import { selectBranch } from "./branch-selector.ts";
 import { selectCommitRange } from "./commit-selector.ts";
 import { renderDiff } from "./diff-renderer.ts";
@@ -12,6 +10,8 @@ import { runRemoteWorkflow, type RemoteResult } from "./workflows/remote.ts";
 import { runStageWorkflow, type StageResult } from "./workflows/stage.ts";
 import { runStashWorkflow, type StashResult } from "./workflows/stash.ts";
 import { runUndoWorkflow, type UndoResult } from "./workflows/undo.ts";
+import { runUpdateWorkflow, type UpdateResult } from "./workflows/update.ts";
+import { getCurrentVersion } from "./version.ts";
 import {
   add,
   branchExists,
@@ -34,7 +34,7 @@ import {
 
 const USAGE = "Usage: g <command> [git arguments...]";
 
-const VERSION: string = (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string }).version;
+const VERSION: string = getCurrentVersion();
 
 export function isSmallDiff(patch: string, terminalRows: number | undefined = process.stdout.rows): boolean {
   const lineLimit = Math.max(8, Math.min(24, (terminalRows ?? 24) - 4));
@@ -59,6 +59,7 @@ Commands:
   conflicts               Preview and open unresolved files
   clean [args...]         Safely select untracked paths to delete
   remote [args...]        Select a remote operation
+  up, update, upgrade     Check for updates and self-update
   i, init [args...]       Initialize a repository
   pull [args...]          Fetch and integrate changes
   push [args...]          Push commits
@@ -94,6 +95,7 @@ export type Dependencies = {
   runConflictsWorkflow?: () => Promise<ConflictsResult>;
   runCleanWorkflow?: () => Promise<CleanResult>;
   runRemoteWorkflow?: () => Promise<RemoteResult>;
+  runUpdateWorkflow?: () => Promise<UpdateResult>;
   stash?: (args: string[]) => void;
   clean?: (args: string[]) => void;
   remote?: (args: string[]) => void;
@@ -126,6 +128,7 @@ export async function run(args: string[], dependencies: Dependencies = {}): Prom
   const resolveConflicts = dependencies.runConflictsWorkflow ?? runConflictsWorkflow;
   const cleanInteractive = dependencies.runCleanWorkflow ?? runCleanWorkflow;
   const remoteInteractive = dependencies.runRemoteWorkflow ?? runRemoteWorkflow;
+  const updateSelf = dependencies.runUpdateWorkflow ?? runUpdateWorkflow;
   const runStash = dependencies.stash ?? stash;
   const runClean = dependencies.clean ?? clean;
   const runRemote = dependencies.remote ?? remote;
@@ -210,6 +213,17 @@ export async function run(args: string[], dependencies: Dependencies = {}): Prom
     else {
       const result = await remoteInteractive();
       if (result?.empty) log("No remotes or branches found.");
+    }
+    return 0;
+  }
+
+  if (["up", "update", "upgrade"].includes(args[0]!)) {
+    const result = await updateSelf();
+    if (result?.status === "up-to-date") log(`g is up to date (v${result.version}).`);
+    else if (result?.status === "updated") log(`g updated from v${result.from} to v${result.to}.`);
+    else if (result?.status === "error") {
+      log(`Update failed: ${result.message}`);
+      return 1;
     }
     return 0;
   }

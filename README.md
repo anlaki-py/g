@@ -57,6 +57,18 @@ g -v
 g --version
 ```
 
+## Updating
+
+Check whether a newer release exists and install it automatically:
+
+```sh
+g up
+g update
+g upgrade
+```
+
+All three are the same command. `g up` asks the GitHub API for the latest release of `g`. If it is newer than the installed version, it runs `npm install --global` on the same release tarball used at install time; otherwise it reports that you are up to date. The next `g` invocation uses the new version. Updating requires network access and `npm` on your PATH, and it updates the global install for the current Node.js installation — the same scope as the original `npm install --global` command.
+
 From inside a Git repository, run either:
 
 ```sh

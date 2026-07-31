@@ -1,8 +1,5 @@
 #!/usr/bin/env node
 
-// src/cli.ts
-import { readFileSync } from "node:fs";
-
 // src/branch-selector.ts
 import {
   ProcessTerminal,
@@ -1112,9 +1109,83 @@ async function runUndoWorkflow(dependencies = {}) {
   return { commit: latest.hash };
 }
 
+// src/workflows/update.ts
+import { spawnSync as spawnSync2 } from "node:child_process";
+
+// src/version.ts
+import { readFileSync } from "node:fs";
+function getCurrentVersion() {
+  const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  return packageJson.version;
+}
+
+// src/workflows/update.ts
+var REPO = "anlaki-py/g";
+var ASSET_NAME = "git-shortcut-tui.tgz";
+var RELEASE_API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
+var RELEASE_DOWNLOAD_URL = `https://github.com/${REPO}/releases/latest/download/${ASSET_NAME}`;
+function normalizeVersion(version) {
+  return version.replace(/^v/, "");
+}
+function compareVersions(a, b) {
+  const partsA = normalizeVersion(a).split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const partsB = normalizeVersion(b).split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const length = Math.max(partsA.length, partsB.length);
+  for (let index = 0; index < length; index++) {
+    const difference = (partsA[index] ?? 0) - (partsB[index] ?? 0);
+    if (difference !== 0) return Math.sign(difference);
+  }
+  return 0;
+}
+async function getLatestRelease() {
+  const response = await fetch(RELEASE_API_URL, {
+    headers: { Accept: "application/vnd.github+json", "User-Agent": "git-shortcut-tui" },
+    signal: AbortSignal.timeout(1e4)
+  });
+  if (!response.ok) {
+    throw new Error(`GitHub API returned ${response.status} ${response.statusText}`);
+  }
+  const release = await response.json();
+  if (!release.tag_name) throw new Error("GitHub API response is missing tag_name");
+  return { tag: release.tag_name, url: RELEASE_DOWNLOAD_URL };
+}
+function installFromUrl(url) {
+  const result = spawnSync2(process.platform === "win32" ? "npm.cmd" : "npm", ["install", "--global", url], {
+    stdio: "inherit"
+  });
+  if (result.error) {
+    const code = result.error.code;
+    throw new Error(code === "ENOENT" ? "npm is not installed" : result.error.message);
+  }
+  if (result.status !== 0) {
+    throw new Error(`npm install exited with status ${result.status}`);
+  }
+}
+async function runUpdateWorkflow(dependencies = {}) {
+  const current = dependencies.currentVersion ?? getCurrentVersion;
+  const fetchLatest = dependencies.getLatestRelease ?? getLatestRelease;
+  const install = dependencies.installFromUrl ?? installFromUrl;
+  const from = current();
+  let latest;
+  try {
+    latest = await fetchLatest();
+  } catch (error) {
+    return { status: "error", message: error instanceof Error ? error.message : String(error) };
+  }
+  if (compareVersions(latest.tag, from) <= 0) {
+    return { status: "up-to-date", version: from };
+  }
+  try {
+    install(latest.url);
+  } catch (error) {
+    return { status: "error", message: error instanceof Error ? error.message : String(error) };
+  }
+  return { status: "updated", from, to: normalizeVersion(latest.tag) };
+}
+
 // src/cli.ts
 var USAGE = "Usage: g <command> [git arguments...]";
-var VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
+var VERSION = getCurrentVersion();
 function isSmallDiff(patch, terminalRows = process.stdout.rows) {
   const lineLimit = Math.max(8, Math.min(24, (terminalRows ?? 24) - 4));
   return patch.split("\n").length <= lineLimit;
@@ -1137,6 +1208,7 @@ Commands:
   conflicts               Preview and open unresolved files
   clean [args...]         Safely select untracked paths to delete
   remote [args...]        Select a remote operation
+  up, update, upgrade     Check for updates and self-update
   i, init [args...]       Initialize a repository
   pull [args...]          Fetch and integrate changes
   push [args...]          Push commits
@@ -1171,6 +1243,7 @@ async function run(args, dependencies = {}) {
   const resolveConflicts = dependencies.runConflictsWorkflow ?? runConflictsWorkflow;
   const cleanInteractive = dependencies.runCleanWorkflow ?? runCleanWorkflow;
   const remoteInteractive = dependencies.runRemoteWorkflow ?? runRemoteWorkflow;
+  const updateSelf = dependencies.runUpdateWorkflow ?? runUpdateWorkflow;
   const runStash = dependencies.stash ?? stash;
   const runClean = dependencies.clean ?? clean;
   const runRemote = dependencies.remote ?? remote;
@@ -1242,6 +1315,16 @@ async function run(args, dependencies = {}) {
     else {
       const result = await remoteInteractive();
       if (result?.empty) log("No remotes or branches found.");
+    }
+    return 0;
+  }
+  if (["up", "update", "upgrade"].includes(args[0])) {
+    const result = await updateSelf();
+    if (result?.status === "up-to-date") log(`g is up to date (v${result.version}).`);
+    else if (result?.status === "updated") log(`g updated from v${result.from} to v${result.to}.`);
+    else if (result?.status === "error") {
+      log(`Update failed: ${result.message}`);
+      return 1;
     }
     return 0;
   }
