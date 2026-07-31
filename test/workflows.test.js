@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { isAffirmative, SearchSelector } from "../src/selectors.js";
-import { visibleWidth } from "../tui/src/index.ts";
+import { visibleWidth } from "../tui/dist/index.js";
 import { runCleanWorkflow } from "../src/workflows/clean.js";
 import { runConflictsWorkflow } from "../src/workflows/conflicts.js";
 import { runLogWorkflow } from "../src/workflows/log.js";

@@ -6,7 +6,7 @@ import {
   stripTerminalSequences,
   truncateToWidth,
   TuiAltScreen,
-} from "../tui/src/index.ts";
+} from "../tui/dist/index.js";
 import { renderDiff } from "./diff-renderer.js";
 
 const dim = (text) => `\x1b[2m${text}\x1b[22m`;

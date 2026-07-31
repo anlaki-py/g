@@ -5,7 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { getCommitPatch, getCurrentDiff, parseBranches, parseCommits } from "../src/git.js";
+import { getCommitPatch, getCurrentDiff, getNullDevicePath, parseBranches, parseCommits } from "../src/git.js";
+
+test("uses the platform-specific null device", () => {
+  assert.equal(getNullDevicePath("linux"), "/dev/null");
+  assert.equal(getNullDevicePath("darwin"), "/dev/null");
+  assert.equal(getNullDevicePath("win32"), "NUL");
+});
 
 test("parseBranches parses local branches and marks the current branch", () => {
   assert.deepEqual(parseBranches("\tfeature/login\n*\tmain\n"), [

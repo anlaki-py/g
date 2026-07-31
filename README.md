@@ -4,9 +4,29 @@ A hobbyist Git helper built to reduce everyday friction while keeping you in con
 
 > **Hobbyist project:** `g` is a personal convenience tool, not professional or production-grade Git tooling. Review prompts and diffs before confirming operations, and use regular Git whenever you need its full precision and guarantees.
 
-## Install locally
+## Install
 
 Requires Node.js 22.19 or newer and Git.
+
+### Linux
+
+Install directly from GitHub without cloning:
+
+```sh
+npm install --global git+https://github.com/anlaki-py/g.git
+```
+
+### Windows
+
+Run in PowerShell or Windows Terminal:
+
+```powershell
+npm install --global "git+https://github.com/anlaki-py/g.git"
+```
+
+The npm installation creates the Windows `g.cmd` launcher automatically. Windows x64 and ARM64 console helpers are included in the package. The test workflow runs on both Ubuntu and Windows for every push and pull request.
+
+### Local development
 
 ```sh
 npm install

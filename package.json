@@ -7,13 +7,16 @@
     "g": "bin/g.js"
   },
   "scripts": {
+    "build": "esbuild tui/src/index.ts --bundle --platform=node --format=esm --packages=external --outfile=tui/dist/index.js",
+    "prepack": "npm run build",
+    "pretest": "npm run build",
     "test": "node --test test/*.test.js",
     "start": "node bin/g.js"
   },
   "files": [
     "bin",
     "src",
-    "tui/src",
+    "tui/dist",
     "tui/native"
   ],
   "engines": {
@@ -24,5 +27,8 @@
     "get-east-asian-width": "1.6.0",
     "marked": "18.0.5"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "^0.25.12"
+  }
 }

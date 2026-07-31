@@ -3,7 +3,7 @@ import {
   SelectList,
   Text,
   TuiMainScreen,
-} from "../tui/src/index.ts";
+} from "../tui/dist/index.js";
 
 const cyan = (text) => `\x1b[36m${text}\x1b[39m`;
 const dim = (text) => `\x1b[2m${text}\x1b[22m`;

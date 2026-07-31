@@ -2,6 +2,10 @@ import { spawnSync } from "node:child_process";
 
 const DEFAULT_MAX_GIT_OUTPUT = 128 * 1024 * 1024;
 
+export function getNullDevicePath(platform = process.platform) {
+  return platform === "win32" ? "NUL" : "/dev/null";
+}
+
 function runGit(args, options = {}) {
   const result = spawnSync("git", args, {
     cwd: options.cwd,
@@ -99,7 +103,7 @@ export function getCurrentDiff(args = [], cwd = process.cwd()) {
     .split("\0")
     .filter(Boolean);
   const untracked = untrackedFiles.map((file) => {
-    const patch = runGit(["diff", "--no-index", ...args, "--", "/dev/null", file], {
+    const patch = runGit(["diff", "--no-index", ...args, "--", getNullDevicePath(), file], {
       cwd,
       acceptStatuses: [0, 1],
     });

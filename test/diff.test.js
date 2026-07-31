@@ -4,7 +4,7 @@ import test from "node:test";
 import { CommitRangeSelector, filterCommits, getCommitSearchText } from "../src/commit-selector.js";
 import { parseUnifiedDiff, renderDiff } from "../src/diff-renderer.js";
 import { DiffViewport } from "../src/diff-viewer.js";
-import { visibleWidth } from "../tui/src/index.ts";
+import { visibleWidth } from "../tui/dist/index.js";
 
 const patch = `diff --git a/file.js b/file.js
 index 1234567..7654321 100644
