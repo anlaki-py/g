@@ -1200,6 +1200,7 @@ Commands:
   stage                   Interactively stage files and hunks
   b, branch [args...]     Select a branch or run git switch
   c, commit [message]     Commit staged changes (prompts when no message is given)
+  ac                      Stage all changes and commit (prompts when no message is given)
   d, diff [args...]       Show the current diff
   diff -b|-between        Search and diff two commits
   l, log [args...]        Search commits and preview changes
@@ -1354,6 +1355,18 @@ async function run(args, dependencies = {}) {
     return 0;
   }
   if (["c", "commit"].includes(args[0])) {
+    const commitArgs = args.slice(1);
+    if (commitArgs.length === 0) {
+      const message = await askForMessage();
+      if (message === void 0 || message.trim() === "") return 0;
+      createCommit(["-m", message]);
+      return 0;
+    }
+    createCommit(commitArgs.some((arg) => arg.startsWith("-")) ? commitArgs : ["-m", commitArgs.join(" ")]);
+    return 0;
+  }
+  if (args[0] === "ac") {
+    stage(["."]);
     const commitArgs = args.slice(1);
     if (commitArgs.length === 0) {
       const message = await askForMessage();

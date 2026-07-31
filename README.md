@@ -98,6 +98,15 @@ Without a message, `g c` opens a prompt: type your message and press Enter to co
 g c
 ```
 
+Stage all changes and commit in one step:
+
+```sh
+g ac
+g ac "describe the change"
+```
+
+`g ac` runs `g a` followed by `g c`: it stages all changes, then commits with the provided message — or opens the commit prompt when none is given.
+
 Stage all changes with either command:
 
 ```sh

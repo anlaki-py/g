@@ -145,6 +145,55 @@ test("commit forwards Git options verbatim", async () => {
   assert.deepEqual(commitArgs, [["--amend", "--no-edit"]]);
 });
 
+test("ac stages all changes and commits with the prompted message", async () => {
+  const staged: string[][] = [];
+  const commitArgs: string[][] = [];
+  const code = await run(["ac"], {
+    add: (paths) => staged.push(paths),
+    promptCommitMessage: async () => "prompted message",
+    commit: (args) => commitArgs.push(args),
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(staged, [["."]]);
+  assert.deepEqual(commitArgs, [["-m", "prompted message"]]);
+});
+
+test("ac stages all changes and commits with the provided message", async () => {
+  const staged: string[][] = [];
+  const commitArgs: string[][] = [];
+  let prompted = false;
+  const code = await run(["ac", "describe", "the", "change"], {
+    add: (paths) => staged.push(paths),
+    promptCommitMessage: async () => { prompted = true; return ""; },
+    commit: (args) => commitArgs.push(args),
+  });
+  assert.equal(code, 0);
+  assert.equal(prompted, false);
+  assert.deepEqual(staged, [["."]]);
+  assert.deepEqual(commitArgs, [["-m", "describe the change"]]);
+});
+
+test("ac does not commit when the prompt is cancelled", async () => {
+  const commitArgs: string[][] = [];
+  const code = await run(["ac"], {
+    add: () => {},
+    promptCommitMessage: async () => undefined,
+    commit: (args) => commitArgs.push(args),
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(commitArgs, []);
+});
+
+test("ac forwards Git options verbatim to the commit", async () => {
+  const commitArgs: string[][] = [];
+  const code = await run(["ac", "--amend", "--no-edit"], {
+    add: () => {},
+    commit: (args) => commitArgs.push(args),
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(commitArgs, [["--amend", "--no-edit"]]);
+});
+
 test("d and diff display the current diff and forward Git arguments", async () => {
   for (const command of ["d", "diff"]) {
     const calls: unknown[][] = [];
@@ -333,6 +382,7 @@ test("h, -h, and --help show every command", async () => {
     assert.match(output[0]!, /push \[args\.\.\.\]/);
     assert.match(output[0]!, /d, diff \[args\.\.\.\]/);
     assert.match(output[0]!, /up, update, upgrade/);
+    assert.match(output[0]!, /ac\s+Stage all changes/);
     assert.doesNotMatch(output[0]!, /p, push/);
   }
 });
