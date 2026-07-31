@@ -22,7 +22,6 @@
     "build": "esbuild tui/src/index.ts --bundle --platform=node --format=esm --packages=external --outfile=tui/dist/index.js && tsc -p tsconfig.tui.json && esbuild bin/g.ts --bundle --platform=node --format=esm --packages=external --external:../tui/dist/index.js --outfile=dist/g.js",
     "check": "tsc --noEmit && eslint .",
     "prepack": "npm run build",
-    "prepare": "npm run build",
     "pretest": "npm run build",
     "test": "node --test test/*.test.ts",
     "start": "node bin/g.ts"
