@@ -1,0 +1,28 @@
+{
+  "name": "git-shortcut-tui",
+  "version": "0.1.0",
+  "description": "A small TUI shortcut for common Git commands",
+  "type": "module",
+  "bin": {
+    "g": "bin/g.js"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "start": "node bin/g.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "tui/src",
+    "tui/native"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "dependencies": {
+    "diff": "^8.0.3",
+    "get-east-asian-width": "1.6.0",
+    "marked": "18.0.5"
+  },
+  "license": "MIT"
+}
