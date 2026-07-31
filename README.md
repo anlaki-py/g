@@ -63,6 +63,15 @@ Both default to `git add .`. You can also provide specific paths:
 g add src README.md
 ```
 
+Interactively select files and individual hunks to stage:
+
+```sh
+g stage
+g a -p
+```
+
+Type to filter, use Space or Tab to toggle changes, and press Enter to stage the selection.
+
 Show the repository status with either command:
 
 ```sh
@@ -86,6 +95,45 @@ g diff -between
 
 Use Up/Down to select commits, Enter to confirm each commit, and Escape or Ctrl+C to cancel. In the diff viewer, type to filter lines, use Backspace to edit the filter, scroll with PageUp/PageDown or Up/Down, and close with Escape or Ctrl+C.
 
+Search commit history and preview any commit:
+
+```sh
+g l
+g log
+g log --all
+```
+
+Manage stashes interactively, or forward a native stash command:
+
+```sh
+g stash
+g stash list
+```
+
+Safely undo the latest commit while keeping its changes staged:
+
+```sh
+g undo
+```
+
+Navigate unresolved conflicts, preview them, and open files in `$GIT_EDITOR`, `$VISUAL`, `$EDITOR`, or `vi`:
+
+```sh
+g conflicts
+```
+
+Select untracked paths to remove. Interactive clean requires typing `DELETE` before anything is deleted:
+
+```sh
+g clean
+```
+
+Select a pull/push action, remote, and branch:
+
+```sh
+g remote
+```
+
 Initialize a Git repository:
 
 ```sh
@@ -102,7 +150,7 @@ g push
 
 ## Git arguments
 
-Every shortcut forwards additional arguments to its Git command:
+Direct shortcuts forward additional arguments to Git. `stash`, `clean`, and `remote` open their TUI with no arguments and forward explicit arguments directly:
 
 ```sh
 g s --short

@@ -119,6 +119,37 @@ test("diff between selects two commits and displays their patch", async () => {
   ]);
 });
 
+test("interactive workflow commands route to their workflows", async () => {
+  for (const { args, dependency } of [
+    { args: ["stage"], dependency: "runStageWorkflow" },
+    { args: ["a", "-p"], dependency: "runStageWorkflow" },
+    { args: ["log", "--all"], dependency: "runLogWorkflow" },
+    { args: ["stash"], dependency: "runStashWorkflow" },
+    { args: ["undo"], dependency: "runUndoWorkflow" },
+    { args: ["conflicts"], dependency: "runConflictsWorkflow" },
+    { args: ["clean"], dependency: "runCleanWorkflow" },
+    { args: ["remote"], dependency: "runRemoteWorkflow" },
+  ]) {
+    const calls = [];
+    const code = await run(args, { [dependency]: async (...values) => calls.push(values) });
+    assert.equal(code, 0);
+    assert.equal(calls.length, 1);
+    if (dependency === "runLogWorkflow") assert.deepEqual(calls[0], [["--all"]]);
+  }
+});
+
+test("stash, clean, and remote forward explicit native arguments", async () => {
+  for (const { args, dependency } of [
+    { args: ["stash", "list"], dependency: "stash" },
+    { args: ["clean", "-n"], dependency: "clean" },
+    { args: ["remote", "-v"], dependency: "remote" },
+  ]) {
+    const received = [];
+    await run(args, { [dependency]: (values) => received.push(values) });
+    assert.deepEqual(received, [args.slice(1)]);
+  }
+});
+
 test("a and add stage all files by default", async () => {
   for (const command of ["a", "add"]) {
     const staged = [];

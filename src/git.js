@@ -4,7 +4,8 @@ function runGit(args, options = {}) {
   const result = spawnSync("git", args, {
     cwd: options.cwd,
     encoding: "utf8",
-    stdio: options.stdio ?? ["ignore", "pipe", "pipe"],
+    input: options.input,
+    stdio: options.stdio ?? [options.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
   });
 
   if (result.error) {
@@ -108,12 +109,97 @@ export function parseCommits(output) {
     });
 }
 
-export function listCommits(cwd = process.cwd()) {
+export function listCommits(cwd = process.cwd(), args = []) {
   const output = runGit([
     "log",
     "--max-count=500",
     "--date=short",
     "--format=%H%x00%h%x00%an%x00%ad%x00%s%x1e",
+    ...args,
   ], { cwd });
   return parseCommits(output);
+}
+
+export function getCommitPatch(hash, cwd = process.cwd()) {
+  return runGit(["show", "--format=", "--patch", hash], { cwd });
+}
+
+export function getUnstagedPatch(cwd = process.cwd()) {
+  return runGit(["diff", "--no-ext-diff", "--binary"], { cwd });
+}
+
+export function listUntrackedFiles(cwd = process.cwd()) {
+  return runGit(["ls-files", "--others", "--exclude-standard", "-z"], { cwd }).split("\0").filter(Boolean);
+}
+
+export function stagePatch(patch, cwd = process.cwd()) {
+  runGit(["apply", "--cached", "--whitespace=nowarn", "-"], { cwd, input: patch });
+}
+
+export function stash(args = [], cwd = process.cwd()) {
+  runGit(["stash", ...args], { cwd, stdio: "inherit" });
+}
+
+export function listStashes(cwd = process.cwd()) {
+  const output = runGit(["stash", "list", "--format=%gd%x00%gs%x1e"], { cwd });
+  return output.split("\x1e").map((record) => record.trim()).filter(Boolean).map((record) => {
+    const [ref, ...subject] = record.split("\x00");
+    return { ref, subject: subject.join("\x00") };
+  });
+}
+
+export function getStashPatch(ref, cwd = process.cwd()) {
+  return runGit(["stash", "show", "--patch", "--include-untracked", ref], { cwd });
+}
+
+export function hasParentCommit(cwd = process.cwd()) {
+  return spawnSync("git", ["rev-parse", "--verify", "HEAD^"], { cwd, stdio: "ignore" }).status === 0;
+}
+
+export function softUndo(cwd = process.cwd()) {
+  runGit(["reset", "--soft", "HEAD~1"], { cwd, stdio: "inherit" });
+}
+
+export function listConflicts(cwd = process.cwd()) {
+  return runGit(["diff", "--name-only", "--diff-filter=U", "-z"], { cwd }).split("\0").filter(Boolean);
+}
+
+export function getPathDiff(file, cwd = process.cwd()) {
+  return runGit(["diff", "--", file], { cwd });
+}
+
+export function openInEditor(file, cwd = process.cwd()) {
+  const editor = process.env.GIT_EDITOR || process.env.VISUAL || process.env.EDITOR || (process.platform === "win32" ? "notepad" : "vi");
+  const result = spawnSync(editor, [file], { cwd, stdio: "inherit" });
+  if (result.error) throw new Error(`Could not open ${editor}: ${result.error.message}`);
+  if (result.status !== 0) throw new Error(`${editor} exited with status ${result.status}`);
+}
+
+export function parseCleanPreview(output) {
+  return output.split("\n").filter(Boolean).map((line) => line.replace(/^Would remove /, ""));
+}
+
+export function listCleanable(cwd = process.cwd()) {
+  return parseCleanPreview(runGit(["clean", "-nd", "-d"], { cwd }));
+}
+
+export function cleanPaths(paths, cwd = process.cwd()) {
+  runGit(["clean", "-fd", "--", ...paths], { cwd, stdio: "inherit" });
+}
+
+export function listRemotes(cwd = process.cwd()) {
+  return runGit(["remote"], { cwd }).split("\n").filter(Boolean);
+}
+
+export function listRemoteBranches(remote, cwd = process.cwd()) {
+  return runGit(["for-each-ref", "--format=%(refname:strip=3)", `refs/remotes/${remote}`], { cwd })
+    .split("\n").filter((branch) => branch && branch !== "HEAD");
+}
+
+export function clean(args, cwd = process.cwd()) {
+  runGit(["clean", ...args], { cwd, stdio: "inherit" });
+}
+
+export function remote(args, cwd = process.cwd()) {
+  runGit(["remote", ...args], { cwd, stdio: "inherit" });
 }

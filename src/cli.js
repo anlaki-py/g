@@ -1,8 +1,16 @@
 import { selectBranch } from "./branch-selector.js";
 import { selectCommitRange } from "./commit-selector.js";
 import { showDiff } from "./diff-viewer.js";
+import { runCleanWorkflow } from "./workflows/clean.js";
+import { runConflictsWorkflow } from "./workflows/conflicts.js";
+import { runLogWorkflow } from "./workflows/log.js";
+import { runRemoteWorkflow } from "./workflows/remote.js";
+import { runStageWorkflow } from "./workflows/stage.js";
+import { runStashWorkflow } from "./workflows/stash.js";
+import { runUndoWorkflow } from "./workflows/undo.js";
 import {
   add,
+  clean,
   commit,
   getCurrentDiff,
   getDiffBetween,
@@ -11,6 +19,8 @@ import {
   listCommits,
   pull,
   push,
+  remote,
+  stash,
   status,
   switchBranch,
 } from "./git.js";
@@ -19,17 +29,24 @@ const USAGE = "Usage: g <command> [git arguments...]";
 const HELP = `${USAGE}
 
 Commands:
-  a, add [paths...]       Stage files (defaults to .)
+  a, add [paths...]       Stage files (defaults to .); -p opens hunk selector
+  stage                   Interactively stage files and hunks
   b, branch [args...]     Select a branch or run git switch
   c, commit [message]     Commit staged changes (defaults to "new commit")
   d, diff [args...]       Show the current diff
   diff -b|-between        Search and diff two commits
+  l, log [args...]        Search commits and preview changes
+  stash [args...]         Create or manage stashes
+  undo                    Soft-undo the latest commit
+  conflicts               Preview and open unresolved files
+  clean [args...]         Safely select untracked paths to delete
+  remote [args...]        Select a remote operation
   i, init [args...]       Initialize a repository
   pull [args...]          Fetch and integrate changes
   push [args...]          Push commits
   s, status [args...]     Show repository status
 
-All trailing arguments are forwarded to the corresponding Git command.`;
+Direct commands forward trailing Git arguments. Interactive commands show a TUI.`;
 
 export async function run(args, dependencies = {}) {
   const list = dependencies.listBranches ?? listBranches;
@@ -46,6 +63,16 @@ export async function run(args, dependencies = {}) {
   const commits = dependencies.listCommits ?? listCommits;
   const selectRange = dependencies.selectCommitRange ?? selectCommitRange;
   const displayDiff = dependencies.showDiff ?? showDiff;
+  const stageInteractive = dependencies.runStageWorkflow ?? runStageWorkflow;
+  const browseLog = dependencies.runLogWorkflow ?? runLogWorkflow;
+  const manageStash = dependencies.runStashWorkflow ?? runStashWorkflow;
+  const undoLatest = dependencies.runUndoWorkflow ?? runUndoWorkflow;
+  const resolveConflicts = dependencies.runConflictsWorkflow ?? runConflictsWorkflow;
+  const cleanInteractive = dependencies.runCleanWorkflow ?? runCleanWorkflow;
+  const remoteInteractive = dependencies.runRemoteWorkflow ?? runRemoteWorkflow;
+  const runStash = dependencies.stash ?? stash;
+  const runClean = dependencies.clean ?? clean;
+  const runRemote = dependencies.remote ?? remote;
   const log = dependencies.log ?? console.log;
 
   if (args.length === 1 && ["h", "-h", "--help"].includes(args[0])) {
@@ -70,6 +97,56 @@ export async function run(args, dependencies = {}) {
 
   if (["s", "status"].includes(args[0])) {
     showStatus(args.slice(1));
+    return 0;
+  }
+
+  if (args[0] === "stage" || (["a", "add"].includes(args[0]) && args[1] === "-p")) {
+    const result = await stageInteractive();
+    if (result?.staged === 0 && !result.cancelled) log("No unstaged changes found.");
+    return 0;
+  }
+
+  if (["l", "log"].includes(args[0])) {
+    const result = await browseLog(args.slice(1));
+    if (result?.empty) log("No commits found.");
+    return 0;
+  }
+
+  if (args[0] === "stash") {
+    if (args.length > 1) runStash(args.slice(1));
+    else {
+      const result = await manageStash();
+      if (result?.empty) log("No stashes found.");
+    }
+    return 0;
+  }
+
+  if (args[0] === "undo") {
+    await undoLatest();
+    return 0;
+  }
+
+  if (args[0] === "conflicts") {
+    const result = await resolveConflicts();
+    if (result?.empty) log("No unresolved conflicts.");
+    return 0;
+  }
+
+  if (args[0] === "clean") {
+    if (args.length > 1) runClean(args.slice(1));
+    else {
+      const result = await cleanInteractive();
+      if (result?.empty) log("No cleanable paths found.");
+    }
+    return 0;
+  }
+
+  if (args[0] === "remote") {
+    if (args.length > 1) runRemote(args.slice(1));
+    else {
+      const result = await remoteInteractive();
+      if (result?.empty) log("No remotes or branches found.");
+    }
     return 0;
   }
 
