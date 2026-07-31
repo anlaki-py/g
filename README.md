@@ -22,10 +22,12 @@ The same command works on Linux, macOS, and Windows (quote the URL in PowerShell
 
 ```sh
 npm install
+npm run check   # type check (tsc --noEmit) + lint (ESLint)
+npm test
 npm link
 ```
 
-This exposes the `g` command globally for the current Node.js installation.
+This exposes the `g` command globally for the current Node.js installation. The project is written in TypeScript. During development, `src/`, `test/`, and `bin/` run directly as `.ts` via Node.js native type stripping (22.18+), so there is no compile step for day-to-day work — `tsc` is used only for type checking and ESLint enforces style. New code must pass both (`npm run check`). The published package ships a compiled bundle (`dist/g.js`, built by `npm run build`) because Node does not allow type stripping for files under `node_modules`.
 
 ## Usage
 

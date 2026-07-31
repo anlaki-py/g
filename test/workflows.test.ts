@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { isAffirmative, SearchSelector } from "../src/selectors.js";
+import { isAffirmative, SearchSelector, type SelectorItem } from "../src/selectors.ts";
 import { visibleWidth } from "../tui/dist/index.js";
-import { runCleanWorkflow } from "../src/workflows/clean.js";
-import { runConflictsWorkflow } from "../src/workflows/conflicts.js";
-import { runLogWorkflow } from "../src/workflows/log.js";
-import { runRemoteWorkflow } from "../src/workflows/remote.js";
-import { combineSelectedHunks, runStageWorkflow, splitPatchIntoHunks } from "../src/workflows/stage.js";
-import { runStashWorkflow } from "../src/workflows/stash.js";
-import { runUndoWorkflow } from "../src/workflows/undo.js";
+import { runCleanWorkflow } from "../src/workflows/clean.ts";
+import { runConflictsWorkflow } from "../src/workflows/conflicts.ts";
+import { runLogWorkflow } from "../src/workflows/log.ts";
+import { runRemoteWorkflow } from "../src/workflows/remote.ts";
+import { combineSelectedHunks, runStageWorkflow, splitPatchIntoHunks } from "../src/workflows/stage.ts";
+import { runStashWorkflow } from "../src/workflows/stash.ts";
+import { runUndoWorkflow } from "../src/workflows/undo.ts";
 
 test("branch creation confirmation defaults to no", () => {
   assert.equal(isAffirmative(""), false);
@@ -46,17 +46,17 @@ test("stage patch parser splits and recombines selected hunks", () => {
   assert.equal(hunks.length, 2);
   const combined = combineSelectedHunks(hunks);
   assert.equal(combined.length, 1);
-  assert.match(combined[0], /new one/);
-  assert.match(combined[0], /new two/);
+  assert.match(combined[0]!, /new one/);
+  assert.match(combined[0]!, /new two/);
 });
 
 test("interactive stage applies selected hunks and adds selected untracked files", async () => {
-  const applied = [];
-  const added = [];
+  const applied: string[] = [];
+  const added: string[][] = [];
   const result = await runStageWorkflow({
     getUnstagedPatch: () => patch,
     listUntrackedFiles: () => ["new.txt"],
-    selectMany: async (_title, items) => [items[0], items.at(-1)],
+    selectMany: async (_title, items) => [items[0]!, items.at(-1)!],
     stagePatch: (value) => applied.push(value),
     add: (args) => added.push(args),
   });
@@ -67,22 +67,22 @@ test("interactive stage applies selected hunks and adds selected untracked files
 
 test("log workflow previews the selected commit", async () => {
   const commit = { hash: "abc", shortHash: "abc", subject: "Change", author: "Ada", date: "2026-01-01" };
-  const shown = [];
+  const shown: string[][] = [];
   await runLogWorkflow(["--all"], {
     listCommits: (args) => { assert.deepEqual(args, ["--all"]); return [commit]; },
     selectItem: async (_title, items) => items[0],
     getCommitPatch: () => "patch",
-    showDiff: async (...args) => shown.push(args),
+    showDiff: async (...args) => { shown.push(args); },
   });
   assert.deepEqual(shown, [["patch", "abc Change"]]);
 });
 
 test("stash drop requires confirmation", async () => {
-  const executed = [];
-  const choices = [
-    { value: "manage" },
-    { value: "stash@{0}", entry: { ref: "stash@{0}", subject: "work" } },
-    { value: "drop" },
+  const executed: string[][] = [];
+  const choices: SelectorItem[] = [
+    { value: "manage", label: "Manage stashes" },
+    { value: "stash@{0}", label: "stash@{0}", entry: { ref: "stash@{0}", subject: "work" } },
+    { value: "drop", label: "Drop" },
   ];
   const result = await runStashWorkflow({
     selectItem: async () => choices.shift(),
@@ -98,7 +98,7 @@ test("undo previews and performs only a soft undo after confirmation", async () 
   let undone = 0;
   await runUndoWorkflow({
     hasParentCommit: () => true,
-    listCommits: () => [{ hash: "abc", shortHash: "abc", subject: "Change" }],
+    listCommits: () => [{ hash: "abc", shortHash: "abc", subject: "Change", author: "", date: "" }],
     getCommitPatch: () => "patch",
     showDiff: async () => {},
     confirmAction: async () => true,
@@ -108,11 +108,14 @@ test("undo previews and performs only a soft undo after confirmation", async () 
 });
 
 test("conflict workflow opens a file and refreshes the conflict list", async () => {
-  const conflictLists = [["file.txt"], []];
-  const selections = [{ value: "file.txt" }, { value: "open" }];
-  const opened = [];
+  const conflictLists: string[][] = [["file.txt"], []];
+  const selections: SelectorItem[] = [
+    { value: "file.txt", label: "file.txt" },
+    { value: "open", label: "Open in editor" },
+  ];
+  const opened: string[] = [];
   const result = await runConflictsWorkflow({
-    listConflicts: () => conflictLists.shift(),
+    listConflicts: () => conflictLists.shift()!,
     selectItem: async () => selections.shift(),
     openInEditor: (file) => opened.push(file),
   });
@@ -133,12 +136,12 @@ test("clean requires the exact DELETE confirmation", async () => {
 });
 
 test("remote workflow confirms and executes the selected operation", async () => {
-  const selections = [
-    { value: "push" },
-    { value: "origin" },
-    { value: "main" },
+  const selections: SelectorItem[] = [
+    { value: "push", label: "Push" },
+    { value: "origin", label: "origin" },
+    { value: "main", label: "main" },
   ];
-  const pushed = [];
+  const pushed: string[][] = [];
   await runRemoteWorkflow({
     selectItem: async () => selections.shift(),
     confirmAction: async () => true,

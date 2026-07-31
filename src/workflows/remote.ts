@@ -1,7 +1,19 @@
-import { listBranches, listRemoteBranches, listRemotes, pull, push } from "../git.js";
-import { confirmAction, selectItem } from "../selectors.js";
+import { listBranches, listRemoteBranches, listRemotes, pull, push, type Branch } from "../git.ts";
+import { confirmAction, selectItem, type SelectorItem } from "../selectors.ts";
 
-export async function runRemoteWorkflow(dependencies = {}) {
+export type RemoteResult = { empty?: boolean; cancelled?: boolean; action?: string; remote?: string; branch?: string };
+
+export type RemoteDeps = {
+  selectItem?: (title: string, items: SelectorItem[]) => Promise<SelectorItem | undefined>;
+  confirmAction?: (title: string) => Promise<boolean>;
+  listRemotes?: () => string[];
+  listRemoteBranches?: (remote: string) => string[];
+  listBranches?: () => Branch[];
+  pull?: (args: string[]) => void;
+  push?: (args: string[]) => void;
+};
+
+export async function runRemoteWorkflow(dependencies: RemoteDeps = {}): Promise<RemoteResult> {
   const choose = dependencies.selectItem ?? selectItem;
   const confirm = dependencies.confirmAction ?? confirmAction;
   const remotes = (dependencies.listRemotes ?? listRemotes)();

@@ -1,8 +1,19 @@
-import { getCommitPatch, hasParentCommit, listCommits, softUndo } from "../git.js";
-import { showDiff } from "../diff-viewer.js";
-import { confirmAction } from "../selectors.js";
+import { getCommitPatch, hasParentCommit, listCommits, softUndo, type Commit } from "../git.ts";
+import { showDiff } from "../diff-viewer.ts";
+import { confirmAction } from "../selectors.ts";
 
-export async function runUndoWorkflow(dependencies = {}) {
+export type UndoResult = { cancelled?: boolean; commit?: string };
+
+export type UndoDeps = {
+  hasParentCommit?: () => boolean;
+  listCommits?: (args?: string[]) => Commit[];
+  getCommitPatch?: (hash: string) => string;
+  showDiff?: (patch: string, title: string) => Promise<void>;
+  confirmAction?: (title: string) => Promise<boolean>;
+  softUndo?: () => void;
+};
+
+export async function runUndoWorkflow(dependencies: UndoDeps = {}): Promise<UndoResult> {
   const canUndo = dependencies.hasParentCommit ?? hasParentCommit;
   const load = dependencies.listCommits ?? (() => listCommits(process.cwd(), ["-1"]));
   const patchFor = dependencies.getCommitPatch ?? getCommitPatch;

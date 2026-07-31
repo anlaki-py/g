@@ -1,12 +1,32 @@
-import { spawnSync } from "node:child_process";
+import { spawnSync, type SpawnSyncOptions } from "node:child_process";
 
 const DEFAULT_MAX_GIT_OUTPUT = 128 * 1024 * 1024;
 
-export function getNullDevicePath(platform = process.platform) {
+export type Branch = { name: string; current: boolean };
+
+export type Commit = {
+  hash: string;
+  shortHash: string;
+  author: string;
+  date: string;
+  subject: string;
+};
+
+export type StashEntry = { ref: string; subject: string };
+
+type RunGitOptions = {
+  cwd?: string;
+  input?: string;
+  maxBuffer?: number;
+  stdio?: SpawnSyncOptions["stdio"];
+  acceptStatuses?: number[];
+};
+
+export function getNullDevicePath(platform: NodeJS.Platform = process.platform): string {
   return platform === "win32" ? "NUL" : "/dev/null";
 }
 
-function runGit(args, options = {}) {
+function runGit(args: string[], options: RunGitOptions = {}): string {
   const result = spawnSync("git", args, {
     cwd: options.cwd,
     encoding: "utf8",
@@ -16,10 +36,11 @@ function runGit(args, options = {}) {
   });
 
   if (result.error) {
-    throw new Error(result.error.code === "ENOENT" ? "Git is not installed" : result.error.message);
+    const code = (result.error as NodeJS.ErrnoException).code;
+    throw new Error(code === "ENOENT" ? "Git is not installed" : result.error.message);
   }
   const acceptedStatuses = options.acceptStatuses ?? [0];
-  if (!acceptedStatuses.includes(result.status)) {
+  if (!acceptedStatuses.includes(result.status ?? -1)) {
     const message = result.stderr?.trim() || `Git exited with status ${result.status}`;
     throw new Error(message);
   }
@@ -27,7 +48,7 @@ function runGit(args, options = {}) {
   return result.stdout ?? "";
 }
 
-export function parseBranches(output) {
+export function parseBranches(output: string): Branch[] {
   return output
     .split("\n")
     .filter(Boolean)
@@ -39,16 +60,16 @@ export function parseBranches(output) {
     });
 }
 
-export function listBranches(cwd = process.cwd()) {
+export function listBranches(cwd: string = process.cwd()): Branch[] {
   const output = runGit(["for-each-ref", "--format=%(HEAD)%09%(refname:short)", "refs/heads"], { cwd });
   return parseBranches(output);
 }
 
-export function switchBranch(args, cwd = process.cwd()) {
+export function switchBranch(args: string[], cwd: string = process.cwd()): void {
   runGit(["switch", ...args], { cwd, stdio: "inherit" });
 }
 
-export function branchExists(name, cwd = process.cwd()) {
+export function branchExists(name: string, cwd: string = process.cwd()): boolean {
   const local = spawnSync("git", ["show-ref", "--verify", "--quiet", `refs/heads/${name}`], {
     cwd,
     stdio: "ignore",
@@ -61,31 +82,31 @@ export function branchExists(name, cwd = process.cwd()) {
   return remotes.some((branch) => branch.endsWith(`/${name}`));
 }
 
-export function commit(args, cwd = process.cwd()) {
+export function commit(args: string[], cwd: string = process.cwd()): void {
   runGit(["commit", ...args], { cwd, stdio: "inherit" });
 }
 
-export function add(args = ["."], cwd = process.cwd()) {
+export function add(args: string[] = ["."], cwd: string = process.cwd()): void {
   runGit(["add", ...args], { cwd, stdio: "inherit" });
 }
 
-export function status(args = [], cwd = process.cwd()) {
+export function status(args: string[] = [], cwd: string = process.cwd()): void {
   runGit(["status", ...args], { cwd, stdio: "inherit" });
 }
 
-export function init(args = [], cwd = process.cwd()) {
+export function init(args: string[] = [], cwd: string = process.cwd()): void {
   runGit(["init", ...args], { cwd, stdio: "inherit" });
 }
 
-export function push(args = [], cwd = process.cwd()) {
+export function push(args: string[] = [], cwd: string = process.cwd()): void {
   runGit(["push", ...args], { cwd, stdio: "inherit" });
 }
 
-export function pull(args = [], cwd = process.cwd()) {
+export function pull(args: string[] = [], cwd: string = process.cwd()): void {
   runGit(["pull", ...args], { cwd, stdio: "inherit" });
 }
 
-export function getCurrentDiff(args = [], cwd = process.cwd()) {
+export function getCurrentDiff(args: string[] = [], cwd: string = process.cwd()): string {
   const head = spawnSync("git", ["rev-parse", "--verify", "HEAD"], {
     cwd,
     encoding: "utf8",
@@ -114,22 +135,22 @@ export function getCurrentDiff(args = [], cwd = process.cwd()) {
   return [tracked, ...untracked].filter(Boolean).join("\n");
 }
 
-export function getDiffBetween(from, to, args = [], cwd = process.cwd()) {
+export function getDiffBetween(from: string, to: string, args: string[] = [], cwd: string = process.cwd()): string {
   return runGit(["diff", from, to, ...args], { cwd });
 }
 
-export function parseCommits(output) {
+export function parseCommits(output: string): Commit[] {
   return output
     .split("\x1e")
     .map((record) => record.replace(/^\n+|\n+$/g, ""))
     .filter(Boolean)
     .map((record) => {
-      const [hash, shortHash, author, date, ...subjectParts] = record.split("\x00");
+      const [hash = "", shortHash = "", author = "", date = "", ...subjectParts] = record.split("\x00");
       return { hash, shortHash, author, date, subject: subjectParts.join("\x00") };
     });
 }
 
-export function listCommits(cwd = process.cwd(), args = []) {
+export function listCommits(cwd: string = process.cwd(), args: string[] = []): Commit[] {
   const output = runGit([
     "log",
     "--max-count=500",
@@ -140,86 +161,86 @@ export function listCommits(cwd = process.cwd(), args = []) {
   return parseCommits(output);
 }
 
-export function getCommitPatch(hash, cwd = process.cwd()) {
+export function getCommitPatch(hash: string, cwd: string = process.cwd()): string {
   return runGit(["show", "--format=", "--patch", hash], { cwd });
 }
 
-export function getUnstagedPatch(cwd = process.cwd()) {
+export function getUnstagedPatch(cwd: string = process.cwd()): string {
   return runGit(["diff", "--no-ext-diff", "--binary"], { cwd });
 }
 
-export function listUntrackedFiles(cwd = process.cwd()) {
+export function listUntrackedFiles(cwd: string = process.cwd()): string[] {
   return runGit(["ls-files", "--others", "--exclude-standard", "-z"], { cwd }).split("\0").filter(Boolean);
 }
 
-export function stagePatch(patch, cwd = process.cwd()) {
+export function stagePatch(patch: string, cwd: string = process.cwd()): void {
   runGit(["apply", "--cached", "--whitespace=nowarn", "-"], { cwd, input: patch });
 }
 
-export function stash(args = [], cwd = process.cwd()) {
+export function stash(args: string[] = [], cwd: string = process.cwd()): void {
   runGit(["stash", ...args], { cwd, stdio: "inherit" });
 }
 
-export function listStashes(cwd = process.cwd()) {
+export function listStashes(cwd: string = process.cwd()): StashEntry[] {
   const output = runGit(["stash", "list", "--format=%gd%x00%gs%x1e"], { cwd });
   return output.split("\x1e").map((record) => record.trim()).filter(Boolean).map((record) => {
-    const [ref, ...subject] = record.split("\x00");
+    const [ref = "", ...subject] = record.split("\x00");
     return { ref, subject: subject.join("\x00") };
   });
 }
 
-export function getStashPatch(ref, cwd = process.cwd()) {
+export function getStashPatch(ref: string, cwd: string = process.cwd()): string {
   return runGit(["stash", "show", "--patch", "--include-untracked", ref], { cwd });
 }
 
-export function hasParentCommit(cwd = process.cwd()) {
+export function hasParentCommit(cwd: string = process.cwd()): boolean {
   return spawnSync("git", ["rev-parse", "--verify", "HEAD^"], { cwd, stdio: "ignore" }).status === 0;
 }
 
-export function softUndo(cwd = process.cwd()) {
+export function softUndo(cwd: string = process.cwd()): void {
   runGit(["reset", "--soft", "HEAD~1"], { cwd, stdio: "inherit" });
 }
 
-export function listConflicts(cwd = process.cwd()) {
+export function listConflicts(cwd: string = process.cwd()): string[] {
   return runGit(["diff", "--name-only", "--diff-filter=U", "-z"], { cwd }).split("\0").filter(Boolean);
 }
 
-export function getPathDiff(file, cwd = process.cwd()) {
+export function getPathDiff(file: string, cwd: string = process.cwd()): string {
   return runGit(["diff", "--", file], { cwd });
 }
 
-export function openInEditor(file, cwd = process.cwd()) {
+export function openInEditor(file: string, cwd: string = process.cwd()): void {
   const editor = process.env.GIT_EDITOR || process.env.VISUAL || process.env.EDITOR || (process.platform === "win32" ? "notepad" : "vi");
   const result = spawnSync(editor, [file], { cwd, stdio: "inherit" });
   if (result.error) throw new Error(`Could not open ${editor}: ${result.error.message}`);
   if (result.status !== 0) throw new Error(`${editor} exited with status ${result.status}`);
 }
 
-export function parseCleanPreview(output) {
+export function parseCleanPreview(output: string): string[] {
   return output.split("\n").filter(Boolean).map((line) => line.replace(/^Would remove /, ""));
 }
 
-export function listCleanable(cwd = process.cwd()) {
+export function listCleanable(cwd: string = process.cwd()): string[] {
   return parseCleanPreview(runGit(["clean", "-nd", "-d"], { cwd }));
 }
 
-export function cleanPaths(paths, cwd = process.cwd()) {
+export function cleanPaths(paths: string[], cwd: string = process.cwd()): void {
   runGit(["clean", "-fd", "--", ...paths], { cwd, stdio: "inherit" });
 }
 
-export function listRemotes(cwd = process.cwd()) {
+export function listRemotes(cwd: string = process.cwd()): string[] {
   return runGit(["remote"], { cwd }).split("\n").filter(Boolean);
 }
 
-export function listRemoteBranches(remote, cwd = process.cwd()) {
+export function listRemoteBranches(remote: string, cwd: string = process.cwd()): string[] {
   return runGit(["for-each-ref", "--format=%(refname:strip=3)", `refs/remotes/${remote}`], { cwd })
     .split("\n").filter((branch) => branch && branch !== "HEAD");
 }
 
-export function clean(args, cwd = process.cwd()) {
+export function clean(args: string[], cwd: string = process.cwd()): void {
   runGit(["clean", ...args], { cwd, stdio: "inherit" });
 }
 
-export function remote(args, cwd = process.cwd()) {
+export function remote(args: string[], cwd: string = process.cwd()): void {
   runGit(["remote", ...args], { cwd, stdio: "inherit" });
 }

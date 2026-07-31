@@ -3,11 +3,14 @@ import {
   SelectList,
   Text,
   TuiMainScreen,
+  type SelectItem,
+  type SelectListTheme,
 } from "../tui/dist/index.js";
+import type { Branch } from "./git.ts";
 
-const cyan = (text) => `\x1b[36m${text}\x1b[39m`;
-const dim = (text) => `\x1b[2m${text}\x1b[22m`;
-const theme = {
+const cyan = (text: string): string => `\x1b[36m${text}\x1b[39m`;
+const dim = (text: string): string => `\x1b[2m${text}\x1b[22m`;
+const theme: SelectListTheme = {
   selectedPrefix: cyan,
   selectedText: cyan,
   description: dim,
@@ -15,7 +18,7 @@ const theme = {
   noMatch: dim,
 };
 
-export function selectBranch(branches) {
+export function selectBranch(branches: Branch[]): Promise<string | undefined> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     throw new Error("branch selection requires an interactive terminal");
   }
@@ -23,7 +26,7 @@ export function selectBranch(branches) {
   return new Promise((resolve) => {
     const terminal = new ProcessTerminal();
     const tui = new TuiMainScreen(terminal);
-    const items = branches.map((branch) => ({
+    const items: SelectItem[] = branches.map((branch) => ({
       value: branch.name,
       label: branch.name,
       description: branch.current ? "current" : undefined,
@@ -33,7 +36,7 @@ export function selectBranch(branches) {
     if (currentIndex >= 0) list.setSelectedIndex(currentIndex);
 
     let finished = false;
-    const finish = (branch) => {
+    const finish = (branch?: string) => {
       if (finished) return;
       finished = true;
       tui.stop();

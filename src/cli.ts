@@ -1,18 +1,17 @@
 import { readFileSync } from "node:fs";
 
-import { selectBranch } from "./branch-selector.js";
-import { selectCommitRange } from "./commit-selector.js";
-import { renderDiff } from "./diff-renderer.js";
-import { showDiff } from "./diff-viewer.js";
-import { confirmBranchCreation } from "./selectors.js";
-import { promptCommitMessage } from "./selectors.js";
-import { runCleanWorkflow } from "./workflows/clean.js";
-import { runConflictsWorkflow } from "./workflows/conflicts.js";
-import { runLogWorkflow } from "./workflows/log.js";
-import { runRemoteWorkflow } from "./workflows/remote.js";
-import { runStageWorkflow } from "./workflows/stage.js";
-import { runStashWorkflow } from "./workflows/stash.js";
-import { runUndoWorkflow } from "./workflows/undo.js";
+import { selectBranch } from "./branch-selector.ts";
+import { selectCommitRange } from "./commit-selector.ts";
+import { renderDiff } from "./diff-renderer.ts";
+import { showDiff } from "./diff-viewer.ts";
+import { confirmBranchCreation, promptCommitMessage } from "./selectors.ts";
+import { runCleanWorkflow, type CleanResult } from "./workflows/clean.ts";
+import { runConflictsWorkflow, type ConflictsResult } from "./workflows/conflicts.ts";
+import { runLogWorkflow, type LogResult } from "./workflows/log.ts";
+import { runRemoteWorkflow, type RemoteResult } from "./workflows/remote.ts";
+import { runStageWorkflow, type StageResult } from "./workflows/stage.ts";
+import { runStashWorkflow, type StashResult } from "./workflows/stash.ts";
+import { runUndoWorkflow, type UndoResult } from "./workflows/undo.ts";
 import {
   add,
   branchExists,
@@ -29,16 +28,19 @@ import {
   stash,
   status,
   switchBranch,
-} from "./git.js";
+  type Branch,
+  type Commit,
+} from "./git.ts";
 
 const USAGE = "Usage: g <command> [git arguments...]";
 
-const VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url))).version;
+const VERSION: string = (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string }).version;
 
-export function isSmallDiff(patch, terminalRows = process.stdout.rows) {
+export function isSmallDiff(patch: string, terminalRows: number | undefined = process.stdout.rows): boolean {
   const lineLimit = Math.max(8, Math.min(24, (terminalRows ?? 24) - 4));
   return patch.split("\n").length <= lineLimit;
 }
+
 const HELP = `g is a hobbyist Git helper designed to reduce friction while keeping you in control.
 It is not intended as professional or production-grade Git tooling.
 
@@ -67,7 +69,39 @@ Options:
 
 Direct commands forward trailing Git arguments. Interactive commands show a TUI.`;
 
-export async function run(args, dependencies = {}) {
+export type Dependencies = {
+  listBranches?: () => Branch[];
+  selectBranch?: (branches: Branch[]) => Promise<string | undefined>;
+  switchBranch?: (args: string[]) => void;
+  branchExists?: (name: string) => boolean;
+  confirmBranchCreation?: (name: string) => Promise<boolean>;
+  commit?: (args: string[]) => void;
+  add?: (paths: string[]) => void;
+  status?: (args: string[]) => void;
+  init?: (args: string[]) => void;
+  push?: (args: string[]) => void;
+  pull?: (args: string[]) => void;
+  getCurrentDiff?: (args: string[]) => string;
+  getDiffBetween?: (from: string, to: string, args: string[]) => string;
+  listCommits?: (cwd?: string, args?: string[]) => Commit[];
+  selectCommitRange?: (commits: Commit[]) => Promise<[Commit, Commit] | undefined>;
+  showDiff?: (patch: string, title: string) => Promise<void>;
+  renderDiff?: (patch: string) => string;
+  runStageWorkflow?: () => Promise<StageResult>;
+  runLogWorkflow?: (args: string[]) => Promise<LogResult>;
+  runStashWorkflow?: () => Promise<StashResult>;
+  runUndoWorkflow?: () => Promise<UndoResult>;
+  runConflictsWorkflow?: () => Promise<ConflictsResult>;
+  runCleanWorkflow?: () => Promise<CleanResult>;
+  runRemoteWorkflow?: () => Promise<RemoteResult>;
+  stash?: (args: string[]) => void;
+  clean?: (args: string[]) => void;
+  remote?: (args: string[]) => void;
+  promptCommitMessage?: () => Promise<string | undefined>;
+  log?: (text: string) => void;
+};
+
+export async function run(args: string[], dependencies: Dependencies = {}): Promise<number> {
   const list = dependencies.listBranches ?? listBranches;
   const select = dependencies.selectBranch ?? selectBranch;
   const checkout = dependencies.switchBranch ?? switchBranch;
@@ -98,17 +132,17 @@ export async function run(args, dependencies = {}) {
   const askForMessage = dependencies.promptCommitMessage ?? promptCommitMessage;
   const log = dependencies.log ?? console.log;
 
-  if (args.length === 1 && ["h", "-h", "--help"].includes(args[0])) {
+  if (args.length === 1 && ["h", "-h", "--help"].includes(args[0]!)) {
     log(HELP);
     return 0;
   }
 
-  if (args.length === 1 && ["v", "-v", "--version"].includes(args[0])) {
+  if (args.length === 1 && ["v", "-v", "--version"].includes(args[0]!)) {
     log(`g ${VERSION}`);
     return 0;
   }
 
-  if (["i", "init"].includes(args[0])) {
+  if (["i", "init"].includes(args[0]!)) {
     initialize(args.slice(1));
     return 0;
   }
@@ -123,19 +157,19 @@ export async function run(args, dependencies = {}) {
     return 0;
   }
 
-  if (["s", "status"].includes(args[0])) {
+  if (["s", "status"].includes(args[0]!)) {
     showStatus(args.slice(1));
     if (args.length === 1) log("Next: g stage to select changes, then g c <message> to commit.");
     return 0;
   }
 
-  if (args[0] === "stage" || (["a", "add"].includes(args[0]) && args[1] === "-p")) {
+  if (args[0] === "stage" || (["a", "add"].includes(args[0]!) && args[1] === "-p")) {
     const result = await stageInteractive();
     if (result?.staged === 0 && !result.cancelled) log("No unstaged changes found.");
     return 0;
   }
 
-  if (["l", "log"].includes(args[0])) {
+  if (["l", "log"].includes(args[0]!)) {
     const result = await browseLog(args.slice(1));
     if (result?.empty) log("No commits found.");
     return 0;
@@ -180,8 +214,8 @@ export async function run(args, dependencies = {}) {
     return 0;
   }
 
-  if (["d", "diff"].includes(args[0])) {
-    if (["-b", "-between"].includes(args[1])) {
+  if (["d", "diff"].includes(args[0]!)) {
+    if (["-b", "-between"].includes(args[1]!)) {
       const range = await selectRange(commits());
       if (!range) return 0;
       const patch = betweenDiff(range[0].hash, range[1].hash, args.slice(2));
@@ -203,12 +237,12 @@ export async function run(args, dependencies = {}) {
     return 0;
   }
 
-  if (["a", "add"].includes(args[0])) {
+  if (["a", "add"].includes(args[0]!)) {
     stage(args.length > 1 ? args.slice(1) : ["."]);
     return 0;
   }
 
-  if (["c", "commit"].includes(args[0])) {
+  if (["c", "commit"].includes(args[0]!)) {
     const commitArgs = args.slice(1);
     if (commitArgs.length === 0) {
       const message = await askForMessage();
@@ -222,14 +256,15 @@ export async function run(args, dependencies = {}) {
     return 0;
   }
 
-  if (!["b", "branch"].includes(args[0])) {
+  if (!["b", "branch"].includes(args[0]!)) {
     log(USAGE);
     return 1;
   }
 
   if (args.length > 1) {
-    if (args.length === 2 && !args[1].startsWith("-") && !hasBranch(args[1])) {
-      if (await confirmCreateBranch(args[1])) checkout(["-c", args[1]]);
+    const target = args[1];
+    if (args.length === 2 && target !== undefined && !target.startsWith("-") && !hasBranch(target)) {
+      if (await confirmCreateBranch(target)) checkout(["-c", target]);
       return 0;
     }
     checkout(args.slice(1));

@@ -9,36 +9,86 @@ import {
   ProcessTerminal,
   truncateToWidth,
   TuiMainScreen,
+  type Component,
+  type Focusable,
+  type SelectListTheme,
 } from "../tui/dist/index.js";
+import type { Commit, StashEntry } from "./git.ts";
 
-const cyan = (text) => `\x1b[36m${text}\x1b[39m`;
-const dim = (text) => `\x1b[2m${text}\x1b[22m`;
+const cyan = (text: string): string => `\x1b[36m${text}\x1b[39m`;
+const dim = (text: string): string => `\x1b[2m${text}\x1b[22m`;
+const editorSelectListTheme: SelectListTheme = {
+  selectedPrefix: cyan,
+  selectedText: cyan,
+  description: dim,
+  scrollInfo: dim,
+  noMatch: dim,
+};
 
-function requireTerminal(label) {
+/**
+ * A selectable list item. Workflows attach their own payloads (commit, entry,
+ * hunk, file) to items and read them back from the selected result.
+ */
+export type SelectorItem = {
+  value: string;
+  label: string;
+  description?: string;
+  searchText?: string;
+  commit?: Commit;
+  entry?: StashEntry;
+  kind?: "hunk" | "file";
+  hunk?: {
+    file: string;
+    index: number;
+    header: string;
+    patch: string;
+    preamble: string;
+    hunk: string;
+  };
+  file?: string;
+};
+
+function requireTerminal(label: string): void {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     throw new Error(`${label} requires an interactive terminal`);
   }
 }
 
-export class SearchSelector {
-  constructor({ title, items, multiple = false, onSubmit, onCancel, requestRender }) {
-    this.title = title;
-    this.items = items;
-    this.filtered = items;
-    this.multiple = multiple;
-    this.onSubmit = onSubmit;
-    this.onCancel = onCancel;
-    this.requestRender = requestRender;
+export class SearchSelector implements Component, Focusable {
+  private readonly title: string;
+  private readonly items: SelectorItem[];
+  private filtered: SelectorItem[];
+  private readonly multiple: boolean;
+  private readonly onSubmit: (items: SelectorItem | SelectorItem[]) => void;
+  private readonly onCancel: () => void;
+  private readonly requestRender: () => void;
+  private readonly input: Input;
+  private selectedIndex = 0;
+  private readonly checked = new Set<string>();
+
+  constructor(options: {
+    title: string;
+    items: SelectorItem[];
+    multiple?: boolean;
+    onSubmit: (items: SelectorItem | SelectorItem[]) => void;
+    onCancel: () => void;
+    requestRender: () => void;
+  }) {
+    this.title = options.title;
+    this.items = options.items;
+    this.filtered = options.items;
+    this.multiple = options.multiple ?? false;
+    this.onSubmit = options.onSubmit;
+    this.onCancel = options.onCancel;
+    this.requestRender = options.requestRender;
     this.input = new Input();
-    this.selectedIndex = 0;
-    this.checked = new Set();
   }
 
-  get focused() { return this.input.focused; }
-  set focused(value) { this.input.focused = value; }
-  invalidate() { this.input.invalidate(); }
+  get focused(): boolean { return this.input.focused; }
+  set focused(value: boolean) { this.input.focused = value; }
+  invalidate(): void { this.input.invalidate(); }
 
-  handleInput(data) {
+  handleInput(data: string): void {
     const kb = getKeybindings();
     if (kb.matches(data, "tui.select.cancel")) return this.onCancel();
     if (kb.matches(data, "tui.select.up")) {
@@ -76,7 +126,7 @@ export class SearchSelector {
     }
   }
 
-  toggleCurrent() {
+  private toggleCurrent(): void {
     const item = this.filtered[this.selectedIndex];
     if (!item) return;
     if (this.checked.has(item.value)) this.checked.delete(item.value);
@@ -84,7 +134,7 @@ export class SearchSelector {
     this.requestRender();
   }
 
-  render(width) {
+  render(width: number): string[] {
     const lines = [
       truncateToWidth(this.title, width, ""),
       truncateToWidth(dim(this.multiple
@@ -97,14 +147,15 @@ export class SearchSelector {
     const maxVisible = 12;
     const start = Math.max(0, Math.min(this.selectedIndex - Math.floor(maxVisible / 2), this.filtered.length - maxVisible));
     const end = Math.min(start + maxVisible, this.filtered.length);
-    for (let index = start; index < end; index++) {
-      const item = this.filtered[index];
+    let index = start;
+    for (const item of this.filtered.slice(start, end)) {
       const active = index === this.selectedIndex;
       const marker = this.multiple ? `[${this.checked.has(item.value) ? "x" : " "}] ` : "";
       const prefix = active ? "→ " : "  ";
       const description = item.description ? dim(` · ${item.description}`) : "";
       const line = `${prefix}${marker}${item.label}${description}`;
       lines.push(truncateToWidth(active ? cyan(line) : line, width, ""));
+      index++;
     }
     if (this.filtered.length > maxVisible) {
       lines.push(truncateToWidth(dim(`  (${this.selectedIndex + 1}/${this.filtered.length})`), width, ""));
@@ -113,14 +164,20 @@ export class SearchSelector {
   }
 }
 
-function runSelector(options) {
+type RunSelectorResult = SelectorItem | SelectorItem[] | undefined;
+
+function runSelector(options: {
+  title: string;
+  items: SelectorItem[];
+  multiple: boolean;
+}): Promise<RunSelectorResult> {
   requireTerminal("selection");
   if (options.items.length === 0) return Promise.resolve(undefined);
   return new Promise((resolve) => {
     const terminal = new ProcessTerminal();
     const tui = new TuiMainScreen(terminal);
     let finished = false;
-    const finish = (value) => {
+    const finish = (value: RunSelectorResult) => {
       if (finished) return;
       finished = true;
       tui.stop();
@@ -138,15 +195,15 @@ function runSelector(options) {
   });
 }
 
-export function selectItem(title, items) {
-  return runSelector({ title, items, multiple: false });
+export function selectItem(title: string, items: SelectorItem[]): Promise<SelectorItem | undefined> {
+  return runSelector({ title, items, multiple: false }) as Promise<SelectorItem | undefined>;
 }
 
-export function selectMany(title, items) {
-  return runSelector({ title, items, multiple: true });
+export function selectMany(title: string, items: SelectorItem[]): Promise<SelectorItem[] | undefined> {
+  return runSelector({ title, items, multiple: true }) as Promise<SelectorItem[] | undefined>;
 }
 
-export function promptText(title, initialValue = "") {
+export function promptText(title: string, initialValue = ""): Promise<string | undefined> {
   requireTerminal("input");
   return new Promise((resolve) => {
     const terminal = new ProcessTerminal();
@@ -154,7 +211,7 @@ export function promptText(title, initialValue = "") {
     const input = new Input();
     input.setValue(initialValue);
     let finished = false;
-    const finish = (value) => {
+    const finish = (value: string | undefined) => {
       if (finished) return;
       finished = true;
       tui.stop();
@@ -162,11 +219,11 @@ export function promptText(title, initialValue = "") {
     };
     input.onSubmit = finish;
     input.onEscape = () => finish(undefined);
-    tui.addChild({
+    const child: Component & Focusable = {
       invalidate() { input.invalidate(); },
-      get focused() { return input.focused; },
-      set focused(value) { input.focused = value; },
-      handleInput(data) {
+      get focused(): boolean { return input.focused; },
+      set focused(value: boolean) { input.focused = value; },
+      handleInput(data: string) {
         const kb = getKeybindings();
         if (kb.matches(data, "tui.select.cancel") || kb.matches(data, "tui.input.copy")) {
           finish(undefined);
@@ -174,34 +231,35 @@ export function promptText(title, initialValue = "") {
         }
         input.handleInput(data);
       },
-      render(width) {
+      render(width: number) {
         return [truncateToWidth(title, width, ""), ...input.render(width)];
       },
-    });
-    tui.setFocus(tui.children[0]);
+    };
+    tui.addChild(child);
+    tui.setFocus(child);
     tui.start();
   });
 }
 
-export function promptCommitMessage() {
+export function promptCommitMessage(): Promise<string | undefined> {
   requireTerminal("input");
   return new Promise((resolve) => {
     const terminal = new ProcessTerminal();
     const tui = new TuiMainScreen(terminal);
-    const editor = new Editor(tui, { borderColor: (text) => text });
+    const editor = new Editor(tui, { borderColor: (text) => text, selectList: editorSelectListTheme });
     let finished = false;
-    const finish = (value) => {
+    const finish = (value: string | undefined) => {
       if (finished) return;
       finished = true;
       tui.stop();
       resolve(value);
     };
     editor.onSubmit = finish;
-    tui.addChild({
+    const child: Component & Focusable = {
       invalidate() { editor.invalidate(); },
-      get focused() { return editor.focused; },
-      set focused(value) { editor.focused = value; },
-      handleInput(data) {
+      get focused(): boolean { return editor.focused; },
+      set focused(value: boolean) { editor.focused = value; },
+      handleInput(data: string) {
         const kb = getKeybindings();
         if (kb.matches(data, "tui.select.cancel") || kb.matches(data, "tui.input.copy")) {
           finish(undefined);
@@ -209,19 +267,20 @@ export function promptCommitMessage() {
         }
         editor.handleInput(data);
       },
-      render(width) {
+      render(width: number) {
         return [
           truncateToWidth(dim("Commit message · Enter submit · Alt+Enter new line · Esc/Ctrl+C cancel"), width, ""),
           ...editor.render(width),
         ];
       },
-    });
-    tui.setFocus(tui.children[0]);
+    };
+    tui.addChild(child);
+    tui.setFocus(child);
     tui.start();
   });
 }
 
-export async function confirmAction(title) {
+export async function confirmAction(title: string): Promise<boolean> {
   const selected = await selectItem(title, [
     { value: "yes", label: "Yes" },
     { value: "no", label: "No" },
@@ -229,11 +288,11 @@ export async function confirmAction(title) {
   return selected?.value === "yes";
 }
 
-export function isAffirmative(answer) {
+export function isAffirmative(answer: string): boolean {
   return ["y", "yes"].includes(answer.trim().toLowerCase());
 }
 
-export async function confirmBranchCreation(name) {
+export async function confirmBranchCreation(name: string): Promise<boolean> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) return false;
   const readline = createInterface({ input: process.stdin, output: process.stdout });
   try {

@@ -1,8 +1,18 @@
-import { getPathDiff, listConflicts, openInEditor } from "../git.js";
-import { showDiff } from "../diff-viewer.js";
-import { selectItem } from "../selectors.js";
+import { getPathDiff, listConflicts, openInEditor } from "../git.ts";
+import { showDiff } from "../diff-viewer.ts";
+import { selectItem, type SelectorItem } from "../selectors.ts";
 
-export async function runConflictsWorkflow(dependencies = {}) {
+export type ConflictsResult = { opened: number; empty?: boolean; cancelled?: boolean };
+
+export type ConflictsDeps = {
+  listConflicts?: () => string[];
+  selectItem?: (title: string, items: SelectorItem[]) => Promise<SelectorItem | undefined>;
+  getPathDiff?: (file: string) => string;
+  showDiff?: (patch: string, title: string) => Promise<void>;
+  openInEditor?: (file: string) => void;
+};
+
+export async function runConflictsWorkflow(dependencies: ConflictsDeps = {}): Promise<ConflictsResult> {
   const load = dependencies.listConflicts ?? listConflicts;
   const choose = dependencies.selectItem ?? selectItem;
   const patchFor = dependencies.getPathDiff ?? getPathDiff;

@@ -5,44 +5,59 @@ import {
   ProcessTerminal,
   truncateToWidth,
   TuiMainScreen,
+  type Component,
+  type Focusable,
 } from "../tui/dist/index.js";
+import type { Commit } from "./git.ts";
 
-const cyan = (text) => `\x1b[36m${text}\x1b[39m`;
-const dim = (text) => `\x1b[2m${text}\x1b[22m`;
+const cyan = (text: string): string => `\x1b[36m${text}\x1b[39m`;
+const dim = (text: string): string => `\x1b[2m${text}\x1b[22m`;
 
-export function getCommitSearchText(commit) {
+export function getCommitSearchText(commit: Commit): string {
   return `${commit.hash} ${commit.shortHash} ${commit.subject} ${commit.author} ${commit.date}`;
 }
 
-export function filterCommits(commits, query) {
+export function filterCommits(commits: Commit[], query: string): Commit[] {
   return fuzzyFilter(commits, query, getCommitSearchText);
 }
 
-export class CommitRangeSelector {
-  constructor(commits, onSelect, onCancel, requestRender) {
+export class CommitRangeSelector implements Component, Focusable {
+  private readonly commits: Commit[];
+  private filtered: Commit[];
+  private readonly onSelect: (range: [Commit, Commit]) => void;
+  private readonly onCancel: () => void;
+  private readonly requestRender: () => void;
+  private readonly search: Input;
+  private selectedIndex = 0;
+  private first: Commit | undefined;
+
+  constructor(
+    commits: Commit[],
+    onSelect: (range: [Commit, Commit]) => void,
+    onCancel: () => void,
+    requestRender: () => void,
+  ) {
     this.commits = commits;
     this.filtered = commits;
     this.onSelect = onSelect;
     this.onCancel = onCancel;
     this.requestRender = requestRender;
     this.search = new Input();
-    this.selectedIndex = 0;
-    this.first = undefined;
   }
 
-  get focused() {
+  get focused(): boolean {
     return this.search.focused;
   }
 
-  set focused(value) {
+  set focused(value: boolean) {
     this.search.focused = value;
   }
 
-  invalidate() {
+  invalidate(): void {
     this.search.invalidate();
   }
 
-  handleInput(data) {
+  handleInput(data: string): void {
     const kb = getKeybindings();
     if (kb.matches(data, "tui.select.cancel")) {
       this.onCancel();
@@ -77,8 +92,9 @@ export class CommitRangeSelector {
     this.search.handleInput(data);
     const query = this.search.getValue();
     if (query !== previousQuery) {
-      const available = this.first
-        ? this.commits.filter((commit) => commit.hash !== this.first.hash)
+      const first = this.first;
+      const available = first
+        ? this.commits.filter((commit) => commit.hash !== first.hash)
         : this.commits;
       this.filtered = filterCommits(available, query);
       this.selectedIndex = 0;
@@ -86,7 +102,7 @@ export class CommitRangeSelector {
     }
   }
 
-  render(width) {
+  render(width: number): string[] {
     const lines = [];
     const heading = this.first
       ? `Select newer commit · from ${cyan(this.first.shortHash)} ${this.first.subject}`
@@ -106,11 +122,12 @@ export class CommitRangeSelector {
       this.filtered.length - maxVisible,
     ));
     const end = Math.min(start + maxVisible, this.filtered.length);
-    for (let i = start; i < end; i++) {
-      const commit = this.filtered[i];
-      const prefix = i === this.selectedIndex ? cyan("→ ") : "  ";
+    let index = start;
+    for (const commit of this.filtered.slice(start, end)) {
+      const prefix = index === this.selectedIndex ? cyan("→ ") : "  ";
       const text = `${commit.shortHash} ${commit.subject} ${dim(`· ${commit.author} · ${commit.date}`)}`;
-      lines.push(truncateToWidth(prefix + (i === this.selectedIndex ? cyan(text) : text), width, ""));
+      lines.push(truncateToWidth(prefix + (index === this.selectedIndex ? cyan(text) : text), width, ""));
+      index++;
     }
     if (this.filtered.length > maxVisible) {
       lines.push(truncateToWidth(dim(`  (${this.selectedIndex + 1}/${this.filtered.length})`), width, ""));
@@ -119,7 +136,7 @@ export class CommitRangeSelector {
   }
 }
 
-export function selectCommitRange(commits) {
+export function selectCommitRange(commits: Commit[]): Promise<[Commit, Commit] | undefined> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     throw new Error("commit selection requires an interactive terminal");
   }
@@ -131,7 +148,7 @@ export function selectCommitRange(commits) {
     const terminal = new ProcessTerminal();
     const tui = new TuiMainScreen(terminal);
     let finished = false;
-    const finish = (range) => {
+    const finish = (range?: [Commit, Commit]) => {
       if (finished) return;
       finished = true;
       tui.stop();

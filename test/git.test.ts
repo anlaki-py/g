@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { getCommitPatch, getCurrentDiff, getNullDevicePath, parseBranches, parseCommits } from "../src/git.js";
+import { getCommitPatch, getCurrentDiff, getNullDevicePath, parseBranches, parseCommits } from "../src/git.ts";
 
 test("uses the platform-specific null device", () => {
   assert.equal(getNullDevicePath("linux"), "/dev/null");
