@@ -1,17 +1,17 @@
 import * as Diff from "diff";
 
-const color = (code, text) => `\x1b[${code}m${text}\x1b[0m`;
-const added = (text) => color("32", text);
-const removed = (text) => color("31", text);
-const context = (text) => color("2", text);
-const header = (text) => color("1;36", text);
-const inverse = (text) => `\x1b[7m${text}\x1b[27m`;
+const color = (code: string, text: string): string => `\x1b[${code}m${text}\x1b[0m`;
+const added = (text: string): string => color("32", text);
+const removed = (text: string): string => color("31", text);
+const context = (text: string): string => color("2", text);
+const header = (text: string): string => color("1;36", text);
+const inverse = (text: string): string => `\x1b[7m${text}\x1b[27m`;
 
-function replaceTabs(text) {
+function replaceTabs(text: string): string {
   return text.replace(/\t/g, "   ");
 }
 
-function renderIntraLineDiff(oldContent, newContent) {
+function renderIntraLineDiff(oldContent: string, newContent: string): { removedLine: string; addedLine: string } {
   const parts = Diff.diffWords(oldContent, newContent);
   let removedLine = "";
   let addedLine = "";
@@ -46,8 +46,19 @@ function renderIntraLineDiff(oldContent, newContent) {
   return { removedLine, addedLine };
 }
 
-export function parseUnifiedDiff(patch) {
-  const output = [];
+export type DiffLine =
+  | { type: "hunk"; text: string }
+  | { type: "fileHeader"; text: string }
+  | { type: "oldFile"; text: string }
+  | { type: "newFile"; text: string }
+  | { type: "meta"; text: string }
+  | { type: "context"; text: string }
+  | { type: "removed"; lineNumber: number; content: string; width: number }
+  | { type: "added"; lineNumber: number; content: string; width: number }
+  | { type: "contextLine"; lineNumber: number; content: string; width: number };
+
+export function parseUnifiedDiff(patch: string): DiffLine[] {
+  const output: DiffLine[] = [];
   const lines = patch.replace(/\r\n/g, "\n").split("\n");
   let oldLine = 0;
   let newLine = 0;
@@ -57,8 +68,8 @@ export function parseUnifiedDiff(patch) {
   for (const line of lines) {
     const hunk = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$/);
     if (hunk) {
-      oldLine = Number(hunk[1]);
-      newLine = Number(hunk[3]);
+      oldLine = Number(hunk[1]!);
+      newLine = Number(hunk[3]!);
       const oldEnd = Math.max(oldLine, oldLine + Number(hunk[2] ?? 1) - 1);
       const newEnd = Math.max(newLine, newLine + Number(hunk[4] ?? 1) - 1);
       lineNumberWidth = Math.max(String(oldEnd).length, String(newEnd).length);
@@ -100,31 +111,40 @@ export function parseUnifiedDiff(patch) {
   return output;
 }
 
-function getDisplayPath(diffHeader) {
+function getDisplayPath(diffHeader: string): string {
   const match = diffHeader.match(/^diff --git (?:"?a\/)?(.+?)"? (?:"?b\/)?(.+?)"?$/);
   return match?.[2] ?? diffHeader.replace(/^diff --git /, "");
 }
 
-function isUsefulMetadata(text) {
+function isUsefulMetadata(text: string): boolean {
   return /^(new file mode|deleted file mode|old mode|new mode|similarity index|rename from|rename to|copy from|copy to|Binary files)/.test(text);
 }
 
-export function renderDiff(patch) {
+/** Render a removed/added line pair with intra-line highlighting, or undefined when not a single modified line. */
+function tryRenderIntraLine(lines: DiffLine[], index: number): string[] | undefined {
+  const current = lines[index];
+  const next = lines[index + 1];
+  if (current?.type !== "removed") return undefined;
+  if (lines[index - 1]?.type === "removed") return undefined;
+  if (next?.type !== "added") return undefined;
+  if (lines[index + 2]?.type === "added") return undefined;
+
+  const intra = renderIntraLineDiff(replaceTabs(current.content), replaceTabs(next.content));
+  return [
+    removed(`-${String(current.lineNumber).padStart(current.width)} ${intra.removedLine}`),
+    added(`+${String(next.lineNumber).padStart(next.width)} ${intra.addedLine}`),
+  ];
+}
+
+export function renderDiff(patch: string): string {
   const lines = parseUnifiedDiff(patch);
-  const result = [];
+  const result: string[] = [];
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (
-      line.type === "removed" &&
-      lines[i - 1]?.type !== "removed" &&
-      lines[i + 1]?.type === "added" &&
-      lines[i + 2]?.type !== "added"
-    ) {
-      const next = lines[i + 1];
-      const intra = renderIntraLineDiff(replaceTabs(line.content), replaceTabs(next.content));
-      result.push(removed(`-${String(line.lineNumber).padStart(line.width)} ${intra.removedLine}`));
-      result.push(added(`+${String(next.lineNumber).padStart(next.width)} ${intra.addedLine}`));
+    const line = lines[i]!;
+    const intraLines = tryRenderIntraLine(lines, i);
+    if (intraLines) {
+      result.push(...intraLines);
       i++;
     } else if (line.type === "removed" || line.type === "added") {
       const text = `${line.type === "removed" ? "-" : "+"}${String(line.lineNumber).padStart(line.width)} ${replaceTabs(line.content)}`;

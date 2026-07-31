@@ -26,6 +26,7 @@ jobs:
           node-version: 22.19.0
           cache: npm
       - run: npm ci
+      - run: npm run check
       - run: npm test
       - name: Compute next version
         run: |

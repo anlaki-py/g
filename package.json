@@ -16,18 +16,19 @@
   ],
   "type": "module",
   "bin": {
-    "g": "bin/g.js"
+    "g": "dist/g.js"
   },
   "scripts": {
-    "build": "esbuild tui/src/index.ts --bundle --platform=node --format=esm --packages=external --outfile=tui/dist/index.js",
+    "build": "esbuild tui/src/index.ts --bundle --platform=node --format=esm --packages=external --outfile=tui/dist/index.js && tsc -p tsconfig.tui.json && esbuild bin/g.ts --bundle --platform=node --format=esm --packages=external --external:../tui/dist/index.js --outfile=dist/g.js",
+    "check": "tsc --noEmit && eslint .",
     "prepack": "npm run build",
+    "prepare": "npm run build",
     "pretest": "npm run build",
-    "test": "node --test test/*.test.js",
-    "start": "node bin/g.js"
+    "test": "node --test test/*.test.ts",
+    "start": "node bin/g.ts"
   },
   "files": [
-    "bin",
-    "src",
+    "dist",
     "tui/dist",
     "tui/native"
   ],
@@ -40,6 +41,11 @@
     "marked": "18.0.5"
   },
   "devDependencies": {
-    "esbuild": "^0.25.12"
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.1",
+    "esbuild": "^0.25.12",
+    "eslint": "^10.8.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.65.0"
   }
 }

@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CommitRangeSelector, filterCommits, getCommitSearchText } from "../src/commit-selector.js";
-import { parseUnifiedDiff, renderDiff } from "../src/diff-renderer.js";
-import { DiffViewport } from "../src/diff-viewer.js";
+/* eslint-disable no-control-regex -- these tests assert on ANSI escape sequences in rendered diffs */
+
+import { CommitRangeSelector, filterCommits, getCommitSearchText } from "../src/commit-selector.ts";
+import { parseUnifiedDiff, renderDiff } from "../src/diff-renderer.ts";
+import { DiffViewport } from "../src/diff-viewer.ts";
 import { visibleWidth } from "../tui/dist/index.js";
 
 const patch = `diff --git a/file.js b/file.js
@@ -84,7 +86,7 @@ test("commit range selector truncates a long selected commit heading", () => {
 });
 
 test("commit search covers hash, message, author, and date", () => {
-  assert.match(getCommitSearchText(commits[0]), /Fix login Ada 2026-01-02/);
+  assert.match(getCommitSearchText(commits[0]!), /Fix login Ada 2026-01-02/);
   assert.deepEqual(filterCommits(commits, "dashboard"), [commits[1]]);
   assert.deepEqual(filterCommits(commits, "2026-01-02"), [commits[0]]);
   assert.deepEqual(filterCommits(commits, "bbbb"), [commits[1]]);

@@ -1,8 +1,20 @@
-import { getStashPatch, listStashes, stash } from "../git.js";
-import { showDiff } from "../diff-viewer.js";
-import { confirmAction, promptText, selectItem } from "../selectors.js";
+import { getStashPatch, listStashes, stash, type StashEntry } from "../git.ts";
+import { showDiff } from "../diff-viewer.ts";
+import { confirmAction, promptText, selectItem, type SelectorItem } from "../selectors.ts";
 
-export async function runStashWorkflow(dependencies = {}) {
+export type StashResult = { cancelled?: boolean; empty?: boolean; action?: string; stash?: string };
+
+export type StashDeps = {
+  selectItem?: (title: string, items: SelectorItem[]) => Promise<SelectorItem | undefined>;
+  promptText?: (title: string, initialValue?: string) => Promise<string | undefined>;
+  confirmAction?: (title: string) => Promise<boolean>;
+  stash?: (args: string[]) => void;
+  listStashes?: () => StashEntry[];
+  getStashPatch?: (ref: string) => string;
+  showDiff?: (patch: string, title: string) => Promise<void>;
+};
+
+export async function runStashWorkflow(dependencies: StashDeps = {}): Promise<StashResult> {
   const choose = dependencies.selectItem ?? selectItem;
   const prompt = dependencies.promptText ?? promptText;
   const confirm = dependencies.confirmAction ?? confirmAction;
@@ -33,7 +45,8 @@ export async function runStashWorkflow(dependencies = {}) {
     entry,
   })));
   if (!selected) return { cancelled: true };
-  const action = await choose(`${selected.entry.ref} · ${selected.entry.subject}`, [
+  const entry = selected.entry!;
+  const action = await choose(`${entry.ref} · ${entry.subject}`, [
     { value: "preview", label: "Preview" },
     { value: "apply", label: "Apply" },
     { value: "pop", label: "Pop" },
@@ -41,13 +54,13 @@ export async function runStashWorkflow(dependencies = {}) {
   ]);
   if (!action) return { cancelled: true };
   if (action.value === "preview") {
-    const patch = patchFor(selected.entry.ref);
-    if (patch) await display(patch, selected.entry.ref);
+    const patch = patchFor(entry.ref);
+    if (patch) await display(patch, entry.ref);
   } else if (action.value === "drop") {
-    if (!await confirm(`Drop ${selected.entry.ref}?`)) return { cancelled: true };
-    execute(["drop", selected.entry.ref]);
+    if (!await confirm(`Drop ${entry.ref}?`)) return { cancelled: true };
+    execute(["drop", entry.ref]);
   } else {
-    execute([action.value, selected.entry.ref]);
+    execute([action.value, entry.ref]);
   }
-  return { action: action.value, stash: selected.entry.ref };
+  return { action: action.value, stash: entry.ref };
 }

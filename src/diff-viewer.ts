@@ -6,13 +6,27 @@ import {
   stripTerminalSequences,
   truncateToWidth,
   TuiAltScreen,
+  type Component,
 } from "../tui/dist/index.js";
-import { renderDiff } from "./diff-renderer.js";
+import { renderDiff } from "./diff-renderer.ts";
 
-const dim = (text) => `\x1b[2m${text}\x1b[22m`;
+const dim = (text: string): string => `\x1b[2m${text}\x1b[22m`;
 
-export class DiffViewport {
-  constructor(tui, patch, title, onClose) {
+export type DiffViewportHost = {
+  terminal: { rows: number };
+  requestRender(): void;
+};
+
+export class DiffViewport implements Component {
+  private readonly tui: DiffViewportHost;
+  private readonly allLines: string[];
+  private readonly title: string;
+  private readonly onClose: () => void;
+  lines: string[];
+  offset = 0;
+  query = "";
+
+  constructor(tui: DiffViewportHost, patch: string, title: string, onClose: () => void) {
     this.tui = tui;
     this.allLines = (patch.includes("diff --git ") ? renderDiff(patch) : patch).split("\n");
     this.lines = this.allLines;
@@ -22,19 +36,19 @@ export class DiffViewport {
     this.query = "";
   }
 
-  invalidate() {}
+  invalidate(): void {}
 
-  getPageSize() {
+  getPageSize(): number {
     return Math.max(1, this.tui.terminal.rows - 2);
   }
 
-  scrollBy(lines) {
+  scrollBy(lines: number): void {
     const maxOffset = Math.max(0, this.lines.length - this.getPageSize());
     this.offset = Math.max(0, Math.min(maxOffset, this.offset + lines));
     this.tui.requestRender();
   }
 
-  updateFilter(query) {
+  updateFilter(query: string): void {
     this.query = query;
     const normalized = query.toLowerCase();
     this.lines = normalized
@@ -44,7 +58,7 @@ export class DiffViewport {
     this.tui.requestRender();
   }
 
-  handleInput(data) {
+  handleInput(data: string): void {
     const pageSize = this.getPageSize();
     if (matchesKey(data, Key.pageUp) || matchesKey(data, Key.shift("pageUp"))) {
       this.scrollBy(-pageSize);
@@ -77,7 +91,7 @@ export class DiffViewport {
     }
   }
 
-  render(width) {
+  render(width: number): string[] {
     const pageSize = this.getPageSize();
     const end = Math.min(this.lines.length, this.offset + pageSize);
     const position = this.lines.length > pageSize
@@ -95,7 +109,7 @@ export class DiffViewport {
   }
 }
 
-export function showDiff(patch, title = "Git diff") {
+export function showDiff(patch: string, title = "Git diff"): Promise<void> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     throw new Error("diff display requires an interactive terminal");
   }

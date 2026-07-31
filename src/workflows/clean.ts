@@ -1,7 +1,16 @@
-import { cleanPaths, listCleanable } from "../git.js";
-import { promptText, selectMany } from "../selectors.js";
+import { cleanPaths, listCleanable } from "../git.ts";
+import { promptText, selectMany, type SelectorItem } from "../selectors.ts";
 
-export async function runCleanWorkflow(dependencies = {}) {
+export type CleanResult = { empty?: boolean; cancelled?: boolean; removed?: string[] };
+
+export type CleanDeps = {
+  listCleanable?: () => string[];
+  selectMany?: (title: string, items: SelectorItem[]) => Promise<SelectorItem[] | undefined>;
+  promptText?: (title: string, initialValue?: string) => Promise<string | undefined>;
+  cleanPaths?: (paths: string[]) => void;
+};
+
+export async function runCleanWorkflow(dependencies: CleanDeps = {}): Promise<CleanResult> {
   const load = dependencies.listCleanable ?? listCleanable;
   const choose = dependencies.selectMany ?? selectMany;
   const prompt = dependencies.promptText ?? promptText;
