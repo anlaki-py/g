@@ -37,6 +37,14 @@ g -h
 g --help
 ```
 
+Show the version:
+
+```sh
+g v
+g -v
+g --version
+```
+
 From inside a Git repository, run either:
 
 ```sh

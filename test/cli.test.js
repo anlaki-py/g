@@ -269,6 +269,15 @@ test("h, -h, and --help show every command", async () => {
   }
 });
 
+test("v, -v, and --version print the package version", async () => {
+  for (const option of ["v", "-v", "--version"]) {
+    const output = [];
+    const code = await run([option], { log: (text) => output.push(text) });
+    assert.equal(code, 0);
+    assert.match(output[0], /^g \d+\.\d+\.\d+$/);
+  }
+});
+
 test("the removed p shortcut is unsupported", async () => {
   const output = [];
   const code = await run(["p"], { log: (text) => output.push(text) });

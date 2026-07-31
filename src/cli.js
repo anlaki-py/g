@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { selectBranch } from "./branch-selector.js";
 import { selectCommitRange } from "./commit-selector.js";
 import { renderDiff } from "./diff-renderer.js";
@@ -30,6 +32,8 @@ import {
 
 const USAGE = "Usage: g <command> [git arguments...]";
 
+const VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url))).version;
+
 export function isSmallDiff(patch, terminalRows = process.stdout.rows) {
   const lineLimit = Math.max(8, Math.min(24, (terminalRows ?? 24) - 4));
   return patch.split("\n").length <= lineLimit;
@@ -56,6 +60,9 @@ Commands:
   pull [args...]          Fetch and integrate changes
   push [args...]          Push commits
   s, status [args...]     Show repository status
+
+Options:
+  v, -v, --version        Show the version
 
 Direct commands forward trailing Git arguments. Interactive commands show a TUI.`;
 
@@ -91,6 +98,11 @@ export async function run(args, dependencies = {}) {
 
   if (args.length === 1 && ["h", "-h", "--help"].includes(args[0])) {
     log(HELP);
+    return 0;
+  }
+
+  if (args.length === 1 && ["v", "-v", "--version"].includes(args[0])) {
+    log(`g ${VERSION}`);
     return 0;
   }
 
