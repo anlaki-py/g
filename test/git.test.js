@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { getCurrentDiff, parseBranches, parseCommits } from "../src/git.js";
+import { getCommitPatch, getCurrentDiff, parseBranches, parseCommits } from "../src/git.js";
 
 test("parseBranches parses local branches and marks the current branch", () => {
   assert.deepEqual(parseBranches("\tfeature/login\n*\tmain\n"), [
@@ -27,6 +27,24 @@ test("parseCommits parses structured log records", () => {
     date: "2026-01-02",
     subject: "Fix login",
   }]);
+});
+
+test("getCommitPatch supports output larger than spawnSync's default buffer", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "g-large-patch-"));
+  try {
+    assert.equal(spawnSync("git", ["init", "-q"], { cwd }).status, 0);
+    assert.equal(spawnSync("git", ["config", "user.email", "test@example.com"], { cwd }).status, 0);
+    assert.equal(spawnSync("git", ["config", "user.name", "Test"], { cwd }).status, 0);
+    writeFileSync(join(cwd, "large.txt"), "x".repeat(2 * 1024 * 1024));
+    assert.equal(spawnSync("git", ["add", "large.txt"], { cwd }).status, 0);
+    assert.equal(spawnSync("git", ["commit", "-qm", "large patch"], { cwd }).status, 0);
+
+    const patch = getCommitPatch("HEAD", cwd);
+    assert.ok(patch.length > 1024 * 1024);
+    assert.match(patch, /large\.txt/);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });
 
 test("getCurrentDiff includes untracked and empty files", () => {

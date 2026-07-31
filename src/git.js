@@ -1,10 +1,13 @@
 import { spawnSync } from "node:child_process";
 
+const DEFAULT_MAX_GIT_OUTPUT = 128 * 1024 * 1024;
+
 function runGit(args, options = {}) {
   const result = spawnSync("git", args, {
     cwd: options.cwd,
     encoding: "utf8",
     input: options.input,
+    maxBuffer: options.maxBuffer ?? DEFAULT_MAX_GIT_OUTPUT,
     stdio: options.stdio ?? [options.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
   });
 
