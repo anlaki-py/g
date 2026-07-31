@@ -212,7 +212,7 @@ export async function run(args, dependencies = {}) {
   }
 
   if (args.length > 1) {
-    if (args.length === 2 && !hasBranch(args[1])) {
+    if (args.length === 2 && !args[1].startsWith("-") && !hasBranch(args[1])) {
       if (await confirmCreateBranch(args[1])) checkout(["-c", args[1]]);
       return 0;
     }

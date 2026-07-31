@@ -32,6 +32,23 @@ test("b and branch switch directly when a branch name is provided", async () => 
   }
 });
 
+test("two-argument switch flags are forwarded without a branch prompt", async () => {
+  for (const flag of ["-f", "-t", "-d"]) {
+    const switched = [];
+    let checkedBranch = false;
+    let prompted = false;
+    const code = await run(["b", flag], {
+      branchExists: () => { checkedBranch = true; return false; },
+      confirmBranchCreation: async () => { prompted = true; return false; },
+      switchBranch: (args) => switched.push(args),
+    });
+    assert.equal(code, 0);
+    assert.equal(checkedBranch, false);
+    assert.equal(prompted, false);
+    assert.deepEqual(switched, [[flag]]);
+  }
+});
+
 test("a missing direct branch is created only after confirmation", async () => {
   for (const confirmed of [false, true]) {
     const switched = [];
